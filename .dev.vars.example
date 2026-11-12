@@ -1,0 +1,5 @@
+# Copia este archivo como .dev.vars para desarrollo local (nunca lo subas a GitHub).
+GITHUB_CLIENT_SECRET=tu_client_secret
+SESSION_SECRET=una_cadena_larga_y_aleatoria_de_al_menos_32_caracteres
+# Solo en tu computador: permite entrar a /admin sin GitHub cuando la dirección es localhost.
+DEV_LOGIN=1

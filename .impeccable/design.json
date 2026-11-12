@@ -1,0 +1,52 @@
+{
+  "name": "JGR Importaciones: marketplace dorado y negro",
+  "colors": {
+    "light": {
+      "bg": "#F5F2EB",
+      "surface": "#FFFFFF",
+      "ink": "#1A1712",
+      "muted": "#5F574A",
+      "line": "#DDD4C3",
+      "gold": "#C9A24A",
+      "goldText": "#7A5B17",
+      "sale": "#B3261E",
+      "button": "#1A1712",
+      "buttonText": "#F7F1E3",
+      "onGold": "#1A1712"
+    },
+    "dark": {
+      "bg": "#0E0D0B",
+      "surface": "#1A1812",
+      "ink": "#EFE8DA",
+      "muted": "#A89E8A",
+      "line": "#2E2A21",
+      "gold": "#D4AF5A",
+      "goldText": "#E2C277",
+      "sale": "#F08A6C",
+      "button": "#D4AF5A",
+      "buttonText": "#14110B",
+      "onGold": "#14110B"
+    }
+  },
+  "typography": {
+    "text": {
+      "family": "Nunito",
+      "roles": [
+        "todo el sitio y el panel"
+      ]
+    }
+  },
+  "shape": {
+    "radius": {
+      "grande": 22,
+      "tarjeta": 16,
+      "interno": 10,
+      "destacado": 26
+    },
+    "button": "pill"
+  },
+  "motion": {
+    "signature": "tarjetas destacadas inclinadas que se enderezan",
+    "slides": "rotación cada 6 s con pausa"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  // Configuración de Cloudflare Workers para JGR Importaciones.
+  // Reemplaza los valores marcados con REEMPLAZAR siguiendo el README.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jgr-importaciones",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "jgr-db",
+      "database_id": "REEMPLAZAR_CON_EL_ID_DE_TU_BASE_D1"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "IMAGES", "bucket_name": "jgr-imagenes" }
+  ],
+  "vars": {
+    // Repositorio de GitHub cuyos colaboradores (con permiso de escritura) pueden entrar a /admin.
+    "GITHUB_REPO": "REEMPLAZAR_usuario/jgr-importaciones",
+    // Client ID de tu GitHub OAuth App (no es secreto).
+    "GITHUB_CLIENT_ID": "REEMPLAZAR_CLIENT_ID",
+    // "read:user" si el repositorio es público; "repo" si es privado (GitHub lo exige para ver tus permisos).
+    "GITHUB_SCOPE": "read:user"
+  }
+}
