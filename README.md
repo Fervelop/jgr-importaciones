@@ -1,216 +1,276 @@
 # JGR Importaciones: tienda en línea
 
-Tienda con carrito que envía el pedido completo por WhatsApp, y panel de administración en `/admin` con inicio de sesión por GitHub. Funciona en Cloudflare: **Workers** (sitio), **D1** (base de datos) y **R2** (imágenes). Todo lo que cambias en el panel se ve en la tienda apenas guardas.
+Tienda con carrito que envía el pedido completo por WhatsApp, y panel de administración con inicio de sesión por GitHub.
 
-## Qué incluye
+| | |
+|---|---|
+| **Tienda** | https://tienda.jgrimportaciones.workers.dev |
+| **Panel** | https://tienda.jgrimportaciones.workers.dev/admin |
+| **Repositorio** | https://github.com/Fervelop/jgr-importaciones |
+| **WhatsApp de pedidos** | +57 302 6983562 |
+| **Cloudflare** | Worker `tienda`, base de datos D1 `jgr-db`, imágenes R2 `jgr-imagenes`, subdominio `jgrimportaciones.workers.dev` |
 
-**Tienda**
-- Inicio tipo marketplace: promociones principales que rotan (slides), franja de confianza, cuadrícula de categorías con foto, ofertas del día con cuenta regresiva, destacados en tarjetas inclinadas, banners promocionales, colección de temporada, productos recientes, pasos de compra, testimonios, preguntas frecuentes y franja final. Todo se edita y se puede ocultar desde el panel.
-- Página de ofertas con todos los productos en descuento.
-- Páginas de categoría con subcategorías, búsqueda, orden por precio o nombre y paginación.
-- Página de producto con galería de varias fotos, precio, precio anterior tachado, precio de oferta destacado, unidades disponibles, marca de agotado, variantes (color, tamaño…) con ajuste de precio y ficha técnica.
-- Carrito que se guarda en el dispositivo del cliente. Al enviarlo, abre WhatsApp al **+57 302 6983562** con cada producto, variante, cantidad, precio unitario, subtotal, total, la nota de que el envío se confirma por WhatsApp y, si el cliente quiere, su nombre, ciudad, dirección y medio de pago.
-- Antes de enviar, la tienda revisa precios y unidades en la base de datos, para que nadie altere el precio desde su navegador.
-- Modo claro (siempre por defecto) y modo oscuro con un botón.
-- Páginas de términos, privacidad, cambios y devoluciones y preguntas frecuentes. Mapa del sitio para Google.
+---
 
-**Panel `/admin`**
-- **Resumen**: cifras de la tienda y últimos pedidos.
-- **Productos**: tabla con búsqueda y filtros; cambia precio, unidades, publicado y destacado sin abrir el producto. Editor completo con fotos (arrastrar y soltar, se optimizan solas), variantes, ficha técnica y vista previa del precio. Duplicar y eliminar.
-- **Categorías**: categorías principales y subcategorías, con imagen de portada, orden y visibilidad.
-- **Pedidos**: cada carrito enviado queda registrado con su código (por ejemplo `JGR-261112-0042`), que también aparece en el mensaje de WhatsApp. Cambia su estado: nuevo, confirmado, enviado, entregado o cancelado.
-- **Página de inicio**: promociones (slides) con imagen y botón, razones para comprar, ofertas del día y su fecha de cierre, destacados, banners, colección de temporada (eliges la categoría), pasos, títulos y qué secciones mostrar. Cada sección es un bloque que se abre y se cierra.
-- **Colores y logo**: nombre, eslogan, logo y los 11 colores de cada modo, con vista previa y aviso si algo no se lee bien.
-- **Textos y páginas**: testimonios, preguntas frecuentes y páginas legales.
-- **Tienda y contacto**: número y mensajes de WhatsApp, medios de pago, redes sociales, contacto, datos para Google y estadísticas de visitas.
+## Cómo funciona: código y contenido viven en lugares distintos
 
-## Lo que necesitas
+Esto es lo más importante para trabajar en la tienda sin perder nada.
 
-- Una cuenta de [Cloudflare](https://dash.cloudflare.com/sign-up) (el plan gratuito alcanza para empezar).
-- Una cuenta de [GitHub](https://github.com).
-- [Node.js](https://nodejs.org) versión 20 o más reciente instalado en tu computador.
+| | Dónde vive | Cómo se cambia | Cuándo se ve |
+|---|---|---|---|
+| **Contenido**: productos, precios, unidades, fotos, categorías, textos del inicio, colores, logo, pedidos | En Cloudflare: base de datos **D1** (`jgr-db`) y fotos en **R2** (`jgr-imagenes`) | Desde el panel `/admin` | Al instante, apenas guardas |
+| **Código**: cómo funciona y cómo está hecha la tienda | En **GitHub** (este repositorio) | Editando archivos y con `git push` | En 1 o 2 minutos, cuando Cloudflare termina de publicar |
 
-## Publicar la tienda paso a paso
+En la práctica:
 
-Abre una terminal en la carpeta del proyecto (la que tiene este archivo).
+- **Lo que cambias en `/admin` no va a GitHub** y no necesita ningún comando. Entras, cambias, guardas y listo, desde cualquier computador o celular.
+- **Publicar código nuevo nunca borra el contenido.** La tienda siempre lee la misma base de datos de Cloudflare.
+- **Si clonas el repositorio, no trae tus productos.** No los necesita para publicar. Solo verás datos de muestra si pruebas la tienda en tu computador (ver [Probar en tu computador](#probar-en-tu-computador)).
+- **El contenido se respalda aparte**, con el comando de [Copias de seguridad](#copias-de-seguridad).
 
-### 1. Instalar
+> Esto es distinto de un sitio con panel basado en Git (como Decap o Sveltia CMS), donde cada cambio del panel es un commit. Esta tienda guarda el contenido en una base de datos para que precios, unidades y pedidos cambien al instante.
 
-```bash
+---
+
+## Uso diario: el panel `/admin`
+
+Entra a https://tienda.jgrimportaciones.workers.dev/admin y presiona **Entrar con GitHub**.
+
+Pueden entrar el dueño del repositorio (`Fervelop`) y los colaboradores con permiso de escritura. La sesión dura 12 horas.
+
+| Sección | Para qué sirve |
+|---|---|
+| **Resumen** | Cifras de la tienda y últimos pedidos. |
+| **Productos** | Tabla con búsqueda y filtros. Cambia precio, unidades, publicado y destacado sin abrir el producto. El editor completo incluye fotos (arrastrar y soltar; se optimizan solas), precio anterior, variantes con ajuste de precio, ficha técnica y vista previa del precio. Puedes duplicar y eliminar. |
+| **Categorías** | Categorías principales y subcategorías (dos niveles), con imagen, orden y visibilidad. |
+| **Pedidos** | Cada carrito enviado por WhatsApp queda registrado con un código (por ejemplo `JGR-261112-0042`) que también aparece en el mensaje. Estados: nuevo, confirmado, enviado, entregado, cancelado. |
+| **Página de inicio** | Bloques plegables por sección: promociones (slides), razones para comprar, categorías, ofertas del día y su fecha de cierre, destacados, banners, colección de temporada, productos recientes, pasos, testimonios, preguntas y franja final. Cada sección se puede ocultar. |
+| **Colores y logo** | Nombre, eslogan, logo y los 11 colores del modo claro y del oscuro, con vista previa y aviso si algo no se lee bien. |
+| **Textos y páginas** | Testimonios, preguntas frecuentes, términos, privacidad y cambios y devoluciones. |
+| **Tienda y contacto** | Número y mensajes de WhatsApp, medios de pago, redes sociales, contacto, datos para Google y estadísticas de visitas. |
+
+**Consejos**
+- Para que un producto salga en el inicio, márcalo como **Destacado**.
+- Para que salga en **Ofertas del día**, llena su **Precio anterior** con un valor mayor que el precio de venta.
+- Para la **colección de temporada**, crea una categoría (por ejemplo "Navidad"), muévele los productos y elígela en Página de inicio → Colección de temporada.
+- Si dejas **Unidades disponibles** vacío, el producto se vende sin límite. Con `0` aparece agotado.
+- Las fotos con fondo transparente (PNG o WEBP) se ven mejor en las tarjetas.
+
+### Colaboradores
+
+- **Dar acceso:** en GitHub ve al repositorio → **Settings → Collaborators → Add people**, con permiso **Write** o mayor. Cuando la persona acepte la invitación, ya puede entrar al panel.
+- **Quitar acceso:** sácala de los colaboradores. Su sesión abierta se cierra sola en máximo 12 horas.
+- **Acceso sin ser colaborador:** agrega su usuario de GitHub en `wrangler.jsonc`, dentro de `"vars"`, como `"ADMIN_USERS": "usuario1,usuario2"`, y sube el cambio.
+
+---
+
+## Cambiar el código
+
+Solo hace falta para cambiar cómo funciona o cómo está hecha la tienda.
+
+### En el computador donde ya tienes el proyecto
+
+```powershell
+git pull
+# ...haz tus cambios en los archivos...
+git add .
+git commit -m "Describe el cambio"
+git push
+```
+
+### En otro computador
+
+```powershell
+git clone https://github.com/Fervelop/jgr-importaciones.git
+cd jgr-importaciones
 npm install
 ```
 
-### 2. Subir el código a GitHub
+### Publicación automática
 
-Crea un repositorio nuevo en GitHub, por ejemplo `jgr-importaciones` (puede ser privado), y sube esta carpeta:
+La publicación automática está activa: el repositorio está conectado en Cloudflare (Worker **tienda** → **Settings → Builds**) y **cada `git push` a `main` se publica solo**. Para revisarlo:
 
-```bash
-git init
-git add .
-git commit -m "Tienda JGR Importaciones"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/jgr-importaciones.git
-git push -u origin main
-```
+1. `git status` debe decir `nothing to commit, working tree clean` y `up to date with 'origin/main'`.
+2. En GitHub, el último commit aparece arriba de la lista de archivos.
+3. En Cloudflare (**Workers y Pages → tienda → Deployments**) aparece una publicación con el mismo mensaje del commit. **Success** significa que ya está en línea; si dice **Failed**, abre la publicación y revisa el registro.
 
-Este repositorio también decide **quién entra al panel**: tú (el dueño) y los colaboradores que invites con permiso de escritura.
+Si la publicación automática falla, puedes publicar a mano:
 
-### 3. Conectar tu cuenta de Cloudflare
-
-```bash
+```powershell
 npx wrangler login
-```
-
-Se abre el navegador para que autorices el acceso.
-
-### 4. Crear la base de datos y el espacio para imágenes
-
-```bash
-npx wrangler d1 create jgr-db
-```
-
-Copia el `database_id` que aparece y pégalo en `wrangler.jsonc`, en lugar de `REEMPLAZAR_CON_EL_ID_DE_TU_BASE_D1`.
-
-```bash
-npx wrangler r2 bucket create jgr-imagenes
-```
-
-Si Cloudflare te pide activar R2, hazlo desde el panel de Cloudflare (sección R2) y vuelve a ejecutar el comando.
-
-### 5. Cargar las tablas y los productos de muestra
-
-```bash
-npm run db:init:remote
-```
-
-> **Importante:** este comando borra los productos y categorías y vuelve a cargar los de muestra. Úsalo **solo la primera vez**. Si más adelante solo necesitas actualizar las tablas, usa `npm run db:schema:remote`, que no borra nada.
-
-### 6. Primera publicación
-
-```bash
 npm run deploy
 ```
 
-Al final verás la dirección de tu tienda, algo como `https://jgr-importaciones.TU-SUBDOMINIO.workers.dev`. Ábrela: la tienda ya funciona. Falta el panel.
+> Lo que esté en `wrangler.jsonc` (repositorio, Client ID, permisos de GitHub) reemplaza lo que cambies a mano en el panel de Cloudflare en cada publicación. Esos valores se cambian en el archivo y se suben con `git push`.
 
-### 7. Crear la aplicación de GitHub para entrar al panel
+---
 
-1. En GitHub ve a **Settings → Developer settings → OAuth Apps → New OAuth App**.
-2. Llena:
-   - **Application name**: `Panel JGR Importaciones`
-   - **Homepage URL**: la dirección de tu tienda, por ejemplo `https://jgr-importaciones.TU-SUBDOMINIO.workers.dev`
-   - **Authorization callback URL**: la misma dirección terminada en `/auth/callback`
-3. Presiona **Register application**. Copia el **Client ID** y luego presiona **Generate a new client secret** y copia el secreto (solo se muestra una vez).
+## Copias de seguridad
 
-### 8. Configurar el panel
+El contenido de la tienda no está en GitHub. Respáldalo cada semana y antes de cambios grandes:
 
-En `wrangler.jsonc`, dentro de `"vars"`:
-
-- `GITHUB_REPO`: tu usuario y repositorio, por ejemplo `"TU_USUARIO/jgr-importaciones"`.
-- `GITHUB_CLIENT_ID`: el Client ID del paso 7.
-- `GITHUB_SCOPE`: déjalo en `"read:user"` si el repositorio es **público**. Si es **privado**, cámbialo a `"repo"`: GitHub lo exige para poder revisar que tienes permiso sobre un repositorio privado. El panel solo usa ese permiso para la revisión al entrar y no lo guarda.
-
-Guarda los dos secretos (te los pedirá la terminal, uno por uno):
-
-```bash
-npx wrangler secret put GITHUB_CLIENT_SECRET
-npx wrangler secret put SESSION_SECRET
+```powershell
+npx wrangler d1 export jgr-db --remote --output=respaldo-AAAA-MM-DD.sql
 ```
 
-Para `SESSION_SECRET` pega una cadena larga y aleatoria. Puedes generar una con:
+- Guarda el archivo fuera del proyecto (en tu computador o en Drive). **No lo subas a GitHub**: incluye datos de clientes de los pedidos.
+- Las fotos quedan en R2 (`jgr-imagenes`). Las que quitas de un producto no se borran, así que no se pierden si te equivocas.
 
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+**Restaurar** un respaldo en la tienda real es solo para emergencias. El archivo trae las tablas completas, así que primero hay que vaciar la base de datos, y eso borra el contenido actual. Hazlo con ayuda y después de sacar un respaldo nuevo.
+
+---
+
+## Probar en tu computador
+
+```powershell
+copy .dev.vars.example .dev.vars
+npm run db:init:local
+npm run dev
 ```
 
-Publica de nuevo:
+- Abre http://localhost:8787. En http://localhost:8787/admin aparece **Entrar en modo local**, que solo funciona en tu computador.
+- Esta prueba usa una base de datos **local** con productos de muestra. Lo que hagas ahí no afecta la tienda real.
 
-```bash
-npm run deploy
+**Probar con los datos reales** (se copian hacia tu computador, sin tocar la tienda):
+
+```powershell
+npx wrangler d1 export jgr-db --remote --output=respaldo.sql
+Remove-Item -Recurse -Force .wrangler
+npx wrangler d1 execute jgr-db --local --file=respaldo.sql
+npm run dev
 ```
 
-Entra a `https://TU-TIENDA.workers.dev/admin` y presiona **Entrar con GitHub**.
+Las fotos subidas no se copian, así que en local algunas imágenes se verán vacías.
 
-### 9. Invitar colaboradores
+### Pruebas automáticas
 
-En el repositorio de GitHub: **Settings → Collaborators → Add people**. Quien acepte la invitación con permiso **Write** (o mayor) puede entrar al panel. Para quitarle el acceso, sácalo de los colaboradores (su sesión abierta dura como máximo 12 horas).
+```powershell
+npm test               # lógica del carrito, mensaje de WhatsApp, sesiones, permisos y validaciones
+npm run typecheck      # revisión de tipos
+```
 
-Si quieres dar acceso a alguien sin hacerlo colaborador, agrega su usuario de GitHub en `wrangler.jsonc` como `"ADMIN_USERS": "usuario1,usuario2"` y publica de nuevo.
+Con `npm run dev` funcionando, en otra terminal:
+
+```powershell
+$env:TEST_BASE_URL="http://localhost:8787"; npm run test:integracion
+```
+
+---
 
 ## Antes de abrir la tienda al público
 
 Todo esto se cambia desde el panel:
 
-- [ ] Reemplazar los **productos de muestra** por los tuyos (o eliminarlos). Las imágenes dicen "Imagen de muestra".
-- [ ] Reemplazar las **imágenes de muestra de las categorías y subcategorías** (Categorías → editar → Imagen de portada). Para la cuadrícula del inicio funcionan mejor fotos de producto con fondo transparente.
-- [ ] Cambiar las **imágenes de las promociones** del inicio (Página de inicio → Promociones principales).
-- [ ] Ajustar la **colección de temporada**: por ejemplo, crea la categoría "Navidad" y elígela en Página de inicio → Colección de temporada.
-- [ ] Reemplazar los **testimonios de ejemplo** por opiniones reales, o apagar la sección (Página de inicio → Mostrar testimonios).
+- [ ] Reemplazar los **37 productos de muestra** por los tuyos, o eliminarlos. Sus imágenes dicen "Imagen de muestra".
+- [ ] Reemplazar las **imágenes de categorías y subcategorías** (Categorías → editar → Imagen de portada).
+- [ ] Cambiar las **imágenes y textos de las promociones** (Página de inicio → Promociones principales).
+- [ ] Reemplazar los **testimonios de ejemplo** por opiniones reales, o apagar la sección.
 - [ ] Revisar con tu asesor los **términos, privacidad y devoluciones** (Textos y páginas). Los textos incluidos son de ejemplo.
-- [ ] Revisar la **barra de aviso** ("Envíos a toda Colombia…") y las **razones para comprar**, que confirmen lo que de verdad ofreces.
-- [ ] Agregar tus **redes sociales** y, si quieres, tu correo (Tienda y contacto).
+- [ ] Confirmar que la **barra de aviso**, las **razones para comprar** y los **banners** dicen lo que de verdad ofreces (por ejemplo, envíos a toda Colombia o compras al por mayor).
+- [ ] Ajustar la **colección de temporada** a una categoría real.
+- [ ] Agregar las **redes sociales** y, si quieres, el correo (Tienda y contacto).
 - [ ] Activar las **estadísticas de visitas**: en Cloudflare ve a **Analytics y registros → Web Analytics → Agregar sitio**, copia el token y pégalo en Tienda y contacto → Estadísticas de visitas.
 
-## Trabajar en tu computador
+---
 
-```bash
-cp .dev.vars.example .dev.vars
-npm run db:init:local
-npm run dev
+## Configuración actual (referencia)
+
+### `wrangler.jsonc`
+
+| Campo | Valor | Nota |
+|---|---|---|
+| `name` | `tienda` | Define la dirección `tienda.jgrimportaciones.workers.dev`. |
+| `d1_databases` | binding **`DB`**, `jgr-db`, id `48676e34-…` | El binding debe llamarse `DB`. |
+| `r2_buckets` | binding **`IMAGES`**, `jgr-imagenes` | Si se borra este bloque, las fotos nuevas se guardan en D1. |
+| `GITHUB_REPO` | `Fervelop/jgr-importaciones` | Sus colaboradores con permiso de escritura entran al panel. |
+| `GITHUB_CLIENT_ID` | El de la OAuth App | No es secreto. |
+| `GITHUB_SCOPE` | `read:user` si el repositorio es público; `repo` si es privado | GitHub exige `repo` para revisar permisos en repositorios privados. |
+| `ADMIN_USERS` (opcional) | `usuario1,usuario2` | Acceso extra sin ser colaborador. |
+
+### Secretos (guardados en Cloudflare, nunca en el código)
+
+| Secreto | Para qué |
+|---|---|
+| `GITHUB_CLIENT_SECRET` | Secreto de la OAuth App de GitHub. |
+| `SESSION_SECRET` | Firma las sesiones del panel (32 caracteres o más). |
+
+Para cambiarlos:
+
+```powershell
+npx wrangler secret put GITHUB_CLIENT_SECRET
+npx wrangler secret put SESSION_SECRET
 ```
 
-Abre `http://localhost:8787`. En `http://localhost:8787/admin` aparece **Entrar en modo local**, que solo funciona en tu computador (en Cloudflare no existe).
+Para generar un `SESSION_SECRET` nuevo, ejecuta el comando de abajo. Cambiarlo cierra todas las sesiones abiertas del panel.
 
-## Pruebas
-
-```bash
-npm test                 # lógica del carrito, mensaje de WhatsApp, sesiones, permisos y validaciones
-npm run typecheck        # revisión de tipos
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Con `npm run dev` funcionando, en otra terminal:
+### OAuth App de GitHub
 
-```bash
-TEST_BASE_URL=http://localhost:8787 npm run test:integracion
-```
+En GitHub: **Settings → Developer settings → OAuth Apps → Panel JGR Importaciones**.
 
-Prueba las páginas, los pedidos (precios recalculados, variantes inválidas, agotados, unidades), la seguridad del panel, la edición de productos, categorías, colores y textos, y la subida de imágenes.
+- **Homepage URL:** `https://tienda.jgrimportaciones.workers.dev`
+- **Authorization callback URL:** `https://tienda.jgrimportaciones.workers.dev/auth/callback`
 
-## Publicación automática (opcional)
+Si cambia la dirección de la tienda (por ejemplo, con un dominio propio), actualiza estas dos URL.
 
-En Cloudflare puedes conectar el repositorio para que cada cambio que subas a GitHub se publique solo: **Workers y Pages → jgr-importaciones → Configuración → Compilaciones → Conectar**. El contenido de la tienda (productos, textos, colores) vive en la base de datos, así que no se pierde al publicar código nuevo.
+---
 
 ## Dominio propio (más adelante)
 
-Cuando compres tu dominio, agrégalo en Cloudflare y en **Workers y Pages → jgr-importaciones → Configuración → Dominios y rutas** añade el dominio. Luego actualiza en tu OAuth App de GitHub la Homepage URL y la Authorization callback URL con el dominio nuevo.
+1. Compra el dominio y agrégalo a tu cuenta de Cloudflare.
+2. En **Workers y Pages → tienda → Settings → Domains & Routes**, agrega el dominio.
+3. Actualiza la **Homepage URL** y la **Authorization callback URL** de la OAuth App de GitHub con el dominio nuevo.
 
-## Copias de seguridad
+---
 
-```bash
-npx wrangler d1 export jgr-db --remote --output=respaldo.sql
-```
+## Solución de problemas
 
-Guarda ese archivo en un lugar seguro. Las imágenes quedan en R2 (`jgr-imagenes`); las que quitas de un producto no se borran de R2, así que no se pierden si te equivocas.
+| Problema | Qué hacer |
+|---|---|
+| `npx wrangler login` da **"No CSRF value available in the session cookie"** | Entra primero a dash.cloudflare.com en tu navegador habitual. Luego ejecuta `npx wrangler login`, pega el enlace en la **barra de direcciones** de ese navegador (no en la terminal) y autoriza de inmediato. Si sigue fallando, usa un token: `$env:CLOUDFLARE_API_TOKEN="..."` y `$env:CLOUDFLARE_ACCOUNT_ID="..."`. |
+| Wrangler pregunta **"Would you like Wrangler to add it on your behalf?"** al crear D1 o R2 | Responde **no**. El archivo ya trae la configuración con los nombres correctos (`DB` e `IMAGES`). |
+| La tienda muestra **"There is nothing here yet"** | El Worker no está publicado con ese nombre o la dirección aún se está activando. Revisa que `name` sea `tienda`, ejecuta `npm run deploy` y espera unos minutos. |
+| La tienda dice que **la base de datos no está inicializada** | Ejecuta `npm run db:schema:remote` (crea las tablas sin borrar nada). |
+| **"R2 bucket not found"** al publicar | Crea el bucket (`npx wrangler r2 bucket create jgr-imagenes`) o borra el bloque `r2_buckets` de `wrangler.jsonc`. |
+| El panel dice que **falta configurar el inicio de sesión** | Revisa `GITHUB_CLIENT_ID` en `wrangler.jsonc` y los secretos `GITHUB_CLIENT_SECRET` y `SESSION_SECRET`. |
+| El panel dice que **tu cuenta no tiene permiso** | La cuenta de GitHub debe ser la dueña del repositorio o colaboradora con permiso Write. Si el repositorio es privado, `GITHUB_SCOPE` debe ser `repo`. |
+| **Error al conectar el repositorio** en Cloudflare Builds | La aplicación **Cloudflare Workers and Pages** ya está instalada en la cuenta **Fervelop** (la usa también **joha-jw.pages.dev**). **No la desinstales**: en GitHub ve a **Settings → Applications → Installed GitHub Apps → Cloudflare Workers and Pages → Configure** y agrega el repositorio en **Repository access**. Al conectar, elige la cuenta **Fervelop**, no una organización. |
+
+> **Cuidado con `npm run db:init:remote`:** borra los productos y categorías y vuelve a cargar los de muestra. Solo se usó una vez, al empezar. Para crear tablas que falten sin borrar nada, usa `npm run db:schema:remote`.
+
+---
+
+## Costos
+
+Todo funciona dentro de los planes gratuitos de Cloudflare para una tienda pequeña o mediana. Activar R2 puede pedir un medio de pago, pero no cobra mientras el uso se mantenga dentro de lo gratuito. Revisa tu consumo en el panel de Cloudflare. Si prefieres no usar R2, borra el bloque `r2_buckets` de `wrangler.jsonc` y las fotos nuevas se guardarán en D1.
+
+---
 
 ## Estructura del proyecto
 
 ```
 src/
-  index.ts              rutas de la tienda, del panel y del inicio de sesión
+  index.ts              rutas de la tienda, del panel, de imágenes y del inicio de sesión
   lib/                  base de datos, ajustes editables, sesión y permisos de GitHub
   routes/               API pública (carrito, pedidos) y API del panel
   views/                páginas de la tienda (HTML generado en el servidor)
 public/
   assets/css/site.css   estilos de la tienda
-  assets/js/site.js     carrito, modo oscuro, galería y envío a WhatsApp
+  assets/js/site.js     carrito, modo oscuro, slides, cuenta regresiva y envío a WhatsApp
   assets/js/order.js    cálculo del carrito y del mensaje (lo usan la tienda y las pruebas)
   admin-app/            panel de administración
   marca/                logo, ícono y la imagen para compartir en redes
   muestras/             imágenes de muestra
-db/                     tablas y datos de muestra
+db/
+  schema.sql            tablas (se puede ejecutar sin borrar nada)
+  seed.sql              datos de muestra (borra productos y categorías)
 scripts/build-seed.mjs  genera los datos y las imágenes de muestra
 tests/                  pruebas automáticas
 DESIGN.md               sistema visual (colores, tipografía, formas)
+wrangler.jsonc          configuración de Cloudflare
 ```
 
-La fuente Nunito está incluida en el proyecto bajo la licencia SIL Open Font License (ver `public/assets/fonts`).
+La fuente Nunito está incluida bajo la licencia SIL Open Font License (ver `public/assets/fonts`).
