@@ -51,6 +51,6 @@ export function adminShell(s: Settings, user: { login: string; name: string; ava
   <p class="app__cargando">Cargando el panel…</p>
 </div>
 <noscript><p class="app__cargando">El panel necesita JavaScript activado.</p></noscript>
-<script type="module" src="/admin-app/admin.js?v=2"></script>
+<script type="module" src="/admin-app/admin.js?v=3"></script>
 </body></html>`;
 }

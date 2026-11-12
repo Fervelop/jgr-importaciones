@@ -73,6 +73,7 @@ export function layout(ctx: ViewCtx, meta: PageMeta, body: unknown) {
     shippingNote: s.store.shippingNote,
     payments: s.payments,
     askCustomerData: s.store.askCustomerData,
+    codCities: s.store.codCities,
     lowStock: s.store.lowStockThreshold,
   };
   const socials = SOCIALS.filter((x) => safeLink(s.social[x.key]));
@@ -99,7 +100,7 @@ ${meta.noindex ? raw('<meta name="robots" content="noindex">') : ''}
 <script>try{var t=localStorage.getItem('jgr-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
 <link rel="preload" href="/assets/fonts/nunito-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/css/fonts.css">
-<link rel="stylesheet" href="/assets/css/site.css?v=2">
+<link rel="stylesheet" href="/assets/css/site.css?v=3">
 ${themeStyle(s)}
 ${meta.jsonLd ? raw(`<script type="application/ld+json">${jsonForScript(meta.jsonLd)}</script>`) : ''}
 </head>
@@ -218,6 +219,7 @@ ${body}
       <p class="carrito__vacio-t">Tu carrito está vacío.</p>
       <p>Explora las vitrinas y agrega lo que te guste.</p>
       <a class="btn btn--linea" href="/#categorias" data-close>Ver categorías</a>
+      <div class="ultimo-pedido" data-last-order hidden></div>
     </div>
     <div class="carrito__aviso" data-cart-notice hidden role="status"></div>
     <ul class="carrito__lista" data-cart-list></ul>
@@ -228,21 +230,23 @@ ${body}
       </div>
       <p class="carrito__nota">${s.store.shippingNote}</p>
       ${s.store.askCustomerData
-        ? html`<details class="datos" open>
-            <summary>Tus datos para el envío <span>(opcional)</span></summary>
+        ? html`<fieldset class="datos">
+            <legend>Tus datos para el envío</legend>
+            <p class="datos__nota">Todos son obligatorios, menos la nota.</p>
             <div class="datos__campos">
-              <label>Nombre<input name="name" autocomplete="name" maxlength="80"></label>
-              <label>Ciudad<input name="city" autocomplete="address-level2" maxlength="80"></label>
-              <label class="ancho">Dirección<input name="address" autocomplete="street-address" maxlength="160"></label>
-              <label class="ancho">Medio de pago preferido
-                <select name="payment">
-                  <option value="">Lo decido en WhatsApp</option>
+              <label>Nombre completo<input name="name" required autocomplete="name" maxlength="80" aria-describedby="e-name"><span class="datos__error" id="e-name" hidden></span></label>
+              <label>Ciudad<input name="city" required autocomplete="address-level2" maxlength="80" aria-describedby="e-city"><span class="datos__error" id="e-city" hidden></span></label>
+              <label class="ancho">Dirección<input name="address" required autocomplete="street-address" maxlength="160" placeholder="Calle, número, barrio y apartamento" aria-describedby="e-address"><span class="datos__error" id="e-address" hidden></span></label>
+              <label class="ancho">Medio de pago
+                <select name="payment" required aria-describedby="e-payment">
+                  <option value="" disabled selected>Elige cómo quieres pagar</option>
                   ${s.payments.map((p) => html`<option>${p}</option>`)}
                 </select>
+                <span class="datos__error" id="e-payment" hidden></span>
               </label>
-              <label class="ancho">Nota<textarea name="note" rows="2" maxlength="300" placeholder="Ej.: horario de entrega, punto de referencia"></textarea></label>
+              <label class="ancho">Nota (opcional)<textarea name="note" rows="2" maxlength="300" placeholder="Ej.: horario de entrega, punto de referencia"></textarea></label>
             </div>
-          </details>`
+          </fieldset>`
         : ''}
       <button class="btn btn--wa" type="submit" data-cart-send>${icon('whatsapp', 22)} Enviar pedido por WhatsApp</button>
       <p class="carrito__seguro">${icon('shield', 16)} No pagas nada todavía: primero confirmamos tu pedido contigo.</p>
@@ -252,7 +256,7 @@ ${body}
 
 <div class="aviso-flotante" data-toast role="status" aria-live="polite" hidden></div>
 <script type="application/json" id="jgr-config">${raw(jsonForScript(config))}</script>
-<script type="module" src="/assets/js/site.js?v=2"></script>
+<script type="module" src="/assets/js/site.js?v=3"></script>
 ${s.analytics.cloudflareToken
   ? raw(
       `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"${s.analytics.cloudflareToken}"}'></script>`,

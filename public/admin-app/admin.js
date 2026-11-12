@@ -143,19 +143,25 @@ const fmtDate = (s) => {
 };
 
 /* ---------- Subida de imágenes (se reducen en el navegador antes de subir) ---------- */
-async function shrink(file, maxSide = 1600) {
+async function shrink(file) {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+  // Se prueba de mayor a menor calidad hasta que la foto pese menos de 1,5 MB.
+  const tries = [[1600, 0.86], [1400, 0.8], [1200, 0.74], [1000, 0.68]];
   try {
     const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
-    if (scale === 1 && file.size < 600 * 1024) return file;
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bmp.width * scale);
-    canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', 0.86));
-    if (!blob || blob.size >= file.size) return file;
-    return new File([blob], file.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' });
+    if (Math.max(bmp.width, bmp.height) <= 1600 && file.size < 600 * 1024) return file;
+    let best = file;
+    for (const [maxSide, quality] of tries) {
+      const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * scale);
+      canvas.height = Math.round(bmp.height * scale);
+      canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', quality));
+      if (blob && blob.size < best.size) best = new File([blob], file.name.replace(/\.\w+$/, '') + '.webp', { type: 'image/webp' });
+      if (best.size < 1.5 * 1024 * 1024) break;
+    }
+    return best;
   } catch {
     return file;
   }
@@ -1241,7 +1247,8 @@ VIEWS.tienda = async () => {
           field({ label: 'Saludo del mensaje', value: v.orderGreeting, attrs: { maxlength: 300 }, onInput: (x) => { v.orderGreeting = x; mark(); } }),
           field({ label: 'Cierre del mensaje', value: v.orderClosing, attrs: { maxlength: 300 }, onInput: (x) => { v.orderClosing = x; mark(); } }),
           field({ label: 'Nota sobre el envío', value: v.shippingNote, hint: 'Se muestra en el carrito y en cada producto.', attrs: { maxlength: 200 }, onInput: (x) => { v.shippingNote = x; mark(); } }),
-          toggle({ label: 'Pedir datos de envío en el carrito', checked: v.askCustomerData, hint: 'Nombre, ciudad, dirección y medio de pago. Siempre son opcionales para el cliente.', onChange: (x) => { v.askCustomerData = x; mark(); } }),
+          toggle({ label: 'Pedir datos de envío en el carrito', checked: v.askCustomerData, hint: 'Nombre, ciudad, dirección y medio de pago son obligatorios; la nota es opcional. Si lo apagas, el cliente envía el pedido sin datos.', onChange: (x) => { v.askCustomerData = x; mark(); } }),
+          field({ label: 'Ciudades con pago contraentrega', value: (v.codCities || []).join(', '), hint: 'Separadas por coma. Si el cliente elige contraentrega y escribe otra ciudad, se le pide otro medio de pago. Déjalo vacío para permitirla en todas.', attrs: { maxlength: 400 }, onInput: (x) => { v.codCities = x.split(',').map((c) => c.trim()).filter(Boolean); mark(); } }),
           field({ label: 'Productos por página', type: 'number', value: v.perPage, attrs: { min: 4, max: 48 }, onInput: (x) => { v.perPage = Number(x); mark(); } }),
           field({ label: 'Avisar "quedan pocas" desde', type: 'number', value: v.lowStockThreshold, hint: 'Cuando las unidades sean iguales o menos que este número.', attrs: { min: 0, max: 100 }, onInput: (x) => { v.lowStockThreshold = Number(x); mark(); } }),
         );

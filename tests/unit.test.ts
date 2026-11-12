@@ -8,6 +8,7 @@ import {
   lineKey,
   maxQty,
   unitPrice,
+  validateCustomer,
   whatsappUrl,
 } from '../public/assets/js/order.js';
 import { checkAccess, signSession, verifySession } from '../src/lib/auth';
@@ -212,5 +213,27 @@ describe('permiso de acceso con GitHub', () => {
   });
   it('niega si el repositorio no está configurado', async () => {
     expect((await checkAccess('ana', 'tok', { GITHUB_REPO: 'REEMPLAZAR', ADMIN_USERS: '' }, fakeFetch(200, {}))).allowed).toBe(false);
+  });
+});
+
+describe('datos obligatorios del carrito', () => {
+  const opts = { payments: ['Nequi', 'Efectivo contraentrega (solo Ibagué y Bogotá)'], codCities: ['Ibagué', 'Bogotá'] };
+  const ok = { name: 'Laura Gómez', city: 'Medellín', address: 'Calle 10 # 20-30, Laureles', payment: 'Nequi' };
+
+  it('acepta datos completos y deja la nota opcional', () => {
+    expect(validateCustomer(ok, opts)).toEqual({});
+  });
+  it('exige nombre, ciudad, dirección y medio de pago', () => {
+    expect(Object.keys(validateCustomer({}, opts)).sort()).toEqual(['address', 'city', 'name', 'payment']);
+  });
+  it('rechaza un medio de pago que no está en la lista', () => {
+    expect(validateCustomer({ ...ok, payment: 'Bitcoin' }, opts).payment).toBeTruthy();
+  });
+  it('solo permite contraentrega en las ciudades configuradas, con o sin tildes', () => {
+    const cod = 'Efectivo contraentrega (solo Ibagué y Bogotá)';
+    expect(validateCustomer({ ...ok, payment: cod }, opts).payment).toMatch(/Ibagué y Bogotá/);
+    expect(validateCustomer({ ...ok, city: 'bogota', payment: cod }, opts)).toEqual({});
+    expect(validateCustomer({ ...ok, city: 'Bogotá D.C.', payment: cod }, opts)).toEqual({});
+    expect(validateCustomer({ ...ok, city: 'IBAGUE', payment: cod }, opts)).toEqual({});
   });
 });

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getProductsByIds, type Product } from '../lib/db';
 import { getSettings, type Env } from '../lib/settings';
 import { str } from '../lib/util';
-import { unitPrice } from '../../public/assets/js/order.js';
+import { unitPrice, validateCustomer } from '../../public/assets/js/order.js';
 
 export const publicApi = new Hono<{ Bindings: Env }>();
 
@@ -45,6 +45,19 @@ publicApi.post('/pedidos', async (c) => {
   }
   const incoming: IncomingItem[] = Array.isArray(body?.items) ? body.items.slice(0, 50) : [];
   if (!incoming.length) return c.json({ error: 'Tu carrito está vacío.' }, 400);
+
+  const settings = await getSettings(c.env.DB);
+  const customer = {
+    name: str(body?.customer?.name, 80).trim(),
+    city: str(body?.customer?.city, 80).trim(),
+    address: str(body?.customer?.address, 160).trim(),
+    payment: str(body?.customer?.payment, 60).trim(),
+    note: str(body?.customer?.note, 300).trim(),
+  };
+  if (settings.store.askCustomerData) {
+    const fields = validateCustomer(customer, { payments: settings.payments, codCities: settings.store.codCities });
+    if (Object.keys(fields).length) return c.json({ error: 'Completa tus datos para enviar el pedido.', fields }, 422);
+  }
 
   const products = await getProductsByIds(
     c.env.DB,
@@ -91,13 +104,6 @@ publicApi.post('/pedidos', async (c) => {
   if (!lines.length) return c.json({ error: problems[0] || 'No hay productos disponibles en tu carrito.', problems }, 409);
 
   const total = lines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-  const customer = {
-    name: str(body?.customer?.name, 80),
-    city: str(body?.customer?.city, 80),
-    address: str(body?.customer?.address, 160),
-    payment: str(body?.customer?.payment, 60),
-    note: str(body?.customer?.note, 300),
-  };
 
   const now = new Date(Date.now() - 5 * 3600 * 1000); // hora de Colombia
   const stamp = now.toISOString().slice(2, 10).replace(/-/g, '');
@@ -115,6 +121,5 @@ publicApi.post('/pedidos', async (c) => {
     }
   }
 
-  const settings = await getSettings(c.env.DB);
   return c.json({ code, items: lines, total, problems, whatsapp: settings.store.whatsapp });
 });

@@ -66,6 +66,7 @@ export type Settings = {
     orderGreeting: string;
     orderClosing: string;
     askCustomerData: boolean;
+    codCities: string[];
     announcement: string;
   };
   payments: string[];
@@ -198,6 +199,7 @@ export const DEFAULT_SETTINGS: Settings = {
     orderGreeting: '¡Hola JGR Importaciones! Quiero hacer este pedido:',
     orderClosing: '¿Me confirman el valor del envío, por favor? Gracias.',
     askCustomerData: true,
+    codCities: ['Ibagué', 'Bogotá'],
     announcement: 'Envíos a toda Colombia. El valor del envío se confirma por WhatsApp.',
   },
   payments: [

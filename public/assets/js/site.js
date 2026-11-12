@@ -7,6 +7,7 @@ import {
   lineKey,
   maxQty,
   unitPrice,
+  validateCustomer,
   whatsappUrl,
 } from './order.js';
 
@@ -267,24 +268,25 @@ function renderCart() {
 
 function renderLastOrder(extraMessages = []) {
   const box = $('[data-cart-notice]');
-  if (!box) return;
-  box.textContent = '';
-  const last = store.get('jgr-ultimo-pedido', null);
-  const messages = [...extraMessages];
-  if (messages.length) {
-    for (const m of messages) box.append(el('p', { text: m }));
+  if (box) {
+    box.textContent = '';
+    for (const m of extraMessages) box.append(el('p', { text: m }));
+    box.hidden = box.childNodes.length === 0;
   }
-  if (last && cart.length && Date.now() - last.at < 1000 * 60 * 60 * 24) {
-    box.append(el('p', { text: `Ya enviaste el pedido ${last.code} por WhatsApp.` }));
-    const clear = el('button', { type: 'button', text: 'Vaciar el carrito' });
-    clear.addEventListener('click', () => {
-      cart = [];
-      store.set('jgr-ultimo-pedido', null);
-      saveCart();
-    });
-    box.append(clear);
+  // Después de enviar, el carrito queda vacío. Si WhatsApp no se abrió, el cliente puede reenviar el pedido.
+  const last = $('[data-last-order]');
+  if (!last) return;
+  const saved = store.get('jgr-ultimo-pedido', null);
+  last.textContent = '';
+  const recent = saved && saved.url && Date.now() - saved.at < 1000 * 60 * 60 * 24;
+  if (recent && !cart.length) {
+    last.append(
+      el('p', { text: saved.code ? `Enviaste tu pedido ${saved.code} por WhatsApp.` : 'Enviaste tu pedido por WhatsApp.' }),
+      el('p', { text: '¿No se abrió WhatsApp? Puedes enviarlo de nuevo.' }),
+      el('a', { class: 'btn btn--linea btn--sm', href: saved.url, target: '_blank', rel: 'noopener', text: 'Abrir WhatsApp de nuevo' }),
+    );
   }
-  box.hidden = box.childNodes.length === 0;
+  last.hidden = !last.childNodes.length;
 }
 
 function changeQty(key, next) {
@@ -385,11 +387,35 @@ document.addEventListener('click', (e) => {
 
 /* Enviar el pedido */
 const form = $('[data-cart-form]');
+
+function showFieldErrors(errors) {
+  if (!form) return;
+  for (const name of ['name', 'city', 'address', 'payment']) {
+    const input = form.elements.namedItem(name);
+    const msg = $(`#e-${name}`, form);
+    if (!input || !msg) continue;
+    const text = errors[name] || '';
+    msg.textContent = text;
+    msg.hidden = !text;
+    input.setAttribute('aria-invalid', text ? 'true' : 'false');
+  }
+  const first = ['name', 'city', 'address', 'payment'].find((n) => errors[n]);
+  if (first) form.elements.namedItem(first)?.focus();
+}
+
+form?.addEventListener('input', (e) => {
+  const name = e.target?.name;
+  const msg = name && $(`#e-${name}`, form);
+  if (msg && !msg.hidden) {
+    msg.hidden = true;
+    e.target.setAttribute('aria-invalid', 'false');
+  }
+});
+
 form?.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!cart.length) return;
   const btn = $('[data-cart-send]');
-  btn.disabled = true;
   const fd = new FormData(form);
   const customer = {
     name: String(fd.get('name') || '').trim(),
@@ -398,6 +424,15 @@ form?.addEventListener('submit', async (e) => {
     payment: String(fd.get('payment') || '').trim(),
     note: String(fd.get('note') || '').trim(),
   };
+  if (CONFIG.askCustomerData) {
+    const errors = validateCustomer(customer, { payments: CONFIG.payments, codCities: CONFIG.codCities });
+    if (Object.keys(errors).length) {
+      showFieldErrors(errors);
+      toast('Completa tus datos para enviar el pedido.');
+      return;
+    }
+  }
+  btn.disabled = true;
   store.set('jgr-datos-envio', { ...customer, note: '' });
   let items = cart.map((l) => ({ name: l.name, variant: l.variant, qty: l.qty, unitPrice: l.unitPrice }));
   let code = '';
@@ -421,6 +456,10 @@ form?.addEventListener('submit', async (e) => {
         toast('Actualizamos tu carrito. Revísalo y vuelve a enviarlo.');
         return;
       }
+    } else if (res.status === 422 && data.fields) {
+      showFieldErrors(data.fields);
+      btn.disabled = false;
+      return;
     } else if (res.status === 409) {
       await refreshCart();
       renderLastOrder(data.problems || [data.error]);
@@ -436,9 +475,13 @@ form?.addEventListener('submit', async (e) => {
     shippingNote: CONFIG.shippingNote,
     code,
   });
-  if (code) store.set('jgr-ultimo-pedido', { code, at: Date.now() });
+  const url = whatsappUrl(whatsapp, message);
+  // El pedido ya salió: se guarda el enlace por si WhatsApp no se abre y se vacía el carrito.
+  store.set('jgr-ultimo-pedido', { code, at: Date.now(), url });
+  cart = [];
+  saveCart();
   btn.disabled = false;
-  window.location.href = whatsappUrl(whatsapp, message);
+  window.location.href = url;
 });
 
 // Recordar los datos de envío del cliente en este dispositivo.

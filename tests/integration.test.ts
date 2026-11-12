@@ -66,12 +66,25 @@ d('tienda pública', () => {
   });
 });
 
+const CLIENTE = { name: 'Cliente Prueba', city: 'Bogotá', address: 'Calle 1 # 2-3, Centro', payment: 'Nequi' };
+
 d('pedidos', () => {
+  it('exige los datos de envío y respeta las ciudades con contraentrega', async () => {
+    const send = (customer: unknown) =>
+      fetch(`${BASE}/api/pedidos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: [{ id: 1, qty: 1 }], customer }) });
+    const empty = await send({});
+    expect(empty.status).toBe(422);
+    expect(Object.keys(((await empty.json()) as any).fields).sort()).toEqual(['address', 'city', 'name', 'payment']);
+    const cod = await send({ ...CLIENTE, city: 'Medellín', payment: 'Efectivo contraentrega (solo Ibagué y Bogotá)' });
+    expect(cod.status).toBe(422);
+    expect((await send({ ...CLIENTE, city: 'Ibagué', payment: 'Efectivo contraentrega (solo Ibagué y Bogotá)' })).status).toBe(200);
+  });
+
   it('recalcula el precio en el servidor e ignora el que manda el navegador', async () => {
     const r = await fetch(`${BASE}/api/pedidos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [{ id: 7, qty: 2, variant: { Color: 'Champaña' }, unitPrice: 1 }], customer: { name: 'Prueba', city: 'Bogotá' } }),
+      body: JSON.stringify({ items: [{ id: 7, qty: 2, variant: { Color: 'Champaña' }, unitPrice: 1 }], customer: CLIENTE }),
     });
     expect(r.status).toBe(200);
     const data = await r.json() as any;
@@ -84,13 +97,13 @@ d('pedidos', () => {
     const bad = await fetch(`${BASE}/api/pedidos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [{ id: 7, qty: 1, variant: { Color: 'Morado' } }] }),
+      body: JSON.stringify({ items: [{ id: 7, qty: 1, variant: { Color: 'Morado' } }], customer: CLIENTE }),
     });
     expect(bad.status).toBe(409);
     const soldOut = await fetch(`${BASE}/api/pedidos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [{ id: 9, qty: 1 }] }),
+      body: JSON.stringify({ items: [{ id: 9, qty: 1 }], customer: CLIENTE }),
     });
     expect(soldOut.status).toBe(409);
   });
@@ -99,7 +112,7 @@ d('pedidos', () => {
     const r = await fetch(`${BASE}/api/pedidos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [{ id: 11, qty: 50, variant: { Color: 'Negro' } }] }),
+      body: JSON.stringify({ items: [{ id: 11, qty: 50, variant: { Color: 'Negro' } }], customer: CLIENTE }),
     });
     const data = await r.json() as any;
     expect(data.items[0].qty).toBe(2);

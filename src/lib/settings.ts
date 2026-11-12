@@ -10,7 +10,8 @@ import { isHex, parseJSON, safeHref, safeImage, safeLink, str, toInt } from './u
 
 export type Env = {
   DB: D1Database;
-  IMAGES: R2Bucket;
+  /** Opcional: si existe, las fotos subidas se guardan en R2; si no, en D1. */
+  IMAGES?: R2Bucket;
   ASSETS: Fetcher;
   GITHUB_REPO: string;
   GITHUB_CLIENT_ID: string;
@@ -155,6 +156,9 @@ export function sanitizeSection(section: SettingsSection, v: any): any {
         orderGreeting: str(v?.orderGreeting, 300) || d.store.orderGreeting,
         orderClosing: str(v?.orderClosing, 300),
         askCustomerData: v?.askCustomerData !== false,
+        codCities: Array.isArray(v?.codCities)
+          ? v.codCities.map((x: unknown) => str(x, 60).trim()).filter(Boolean).slice(0, 30)
+          : d.store.codCities,
         announcement: str(v?.announcement, 160),
       };
     case 'payments':

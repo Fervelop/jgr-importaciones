@@ -117,3 +117,52 @@ export function discountPercent(price, compareAt) {
   if (!c || !p || c <= p) return 0;
   return Math.round(((c - p) / c) * 100);
 }
+
+const norm = (t) =>
+  String(t || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+/** ¿El medio de pago elegido es contraentrega? */
+export function isCashOnDelivery(payment) {
+  return norm(payment).includes('contraentrega');
+}
+
+/** ¿La ciudad escrita es una de las que tienen contraentrega? */
+export function cityAllowsCod(city, codCities = []) {
+  const c = norm(city);
+  if (!codCities.length) return true;
+  return codCities.some((allowed) => {
+    const a = norm(allowed);
+    return a && (c === a || c.startsWith(a + ' ') || c.includes(a));
+  });
+}
+
+/**
+ * Revisa los datos de envío del carrito. Devuelve un objeto { campo: mensaje } vacío si todo está bien.
+ * La nota es el único campo opcional.
+ */
+export function validateCustomer(customer = {}, opts = {}) {
+  const errors = {};
+  const name = String(customer.name || '').trim();
+  const city = String(customer.city || '').trim();
+  const address = String(customer.address || '').trim();
+  const payment = String(customer.payment || '').trim();
+  if (name.length < 3) errors.name = 'Escribe tu nombre completo.';
+  if (city.length < 3) errors.city = 'Escribe la ciudad de entrega.';
+  if (address.length < 6) errors.address = 'Escribe la dirección completa (calle, número y barrio).';
+  const payments = opts.payments || [];
+  if (!payment) errors.payment = 'Elige cómo quieres pagar.';
+  else if (payments.length && !payments.includes(payment)) errors.payment = 'Elige un medio de pago de la lista.';
+  else if (isCashOnDelivery(payment) && city && !errors.city && !cityAllowsCod(city, opts.codCities || [])) {
+    errors.payment = `La contraentrega solo está disponible en ${listCities(opts.codCities || [])}. Elige otro medio de pago.`;
+  }
+  return errors;
+}
+
+function listCities(cities) {
+  if (cities.length <= 1) return cities.join('');
+  return cities.slice(0, -1).join(', ') + ' y ' + cities[cities.length - 1];
+}
