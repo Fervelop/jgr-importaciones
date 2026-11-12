@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { getProductsByIds, type Product } from '../lib/db';
-import { getSettings, type Env } from '../lib/settings';
+import { getSettings, isMainStore, storeId, type Env } from '../lib/settings';
 import { str } from '../lib/util';
 import { unitPrice, validateCustomer } from '../../public/assets/js/order.js';
 
@@ -26,7 +26,7 @@ publicApi.get('/productos/estado', async (c) => {
     .map((x) => parseInt(x, 10))
     .filter((n) => Number.isInteger(n) && n > 0)
     .slice(0, 100);
-  const items = await getProductsByIds(c.env.DB, ids);
+  const items = await getProductsByIds(c.env.DB, ids, storeId(c.env));
   return c.json({ items: items.map(stateOf) }, 200, { 'Cache-Control': 'no-store' });
 });
 
@@ -46,7 +46,8 @@ publicApi.post('/pedidos', async (c) => {
   const incoming: IncomingItem[] = Array.isArray(body?.items) ? body.items.slice(0, 50) : [];
   if (!incoming.length) return c.json({ error: 'Tu carrito está vacío.' }, 400);
 
-  const settings = await getSettings(c.env.DB);
+  const store = storeId(c.env);
+  const settings = await getSettings(c.env.DB, store);
   const customer = {
     name: str(body?.customer?.name, 80).trim(),
     city: str(body?.customer?.city, 80).trim(),
@@ -62,6 +63,7 @@ publicApi.post('/pedidos', async (c) => {
   const products = await getProductsByIds(
     c.env.DB,
     incoming.map((i) => Number(i.id)),
+    store,
   );
   const byId = new Map(products.map((p) => [p.id, p]));
   const lines: { id: number; name: string; sku: string; variant: Record<string, string>; qty: number; unitPrice: number }[] = [];
@@ -110,10 +112,11 @@ publicApi.post('/pedidos', async (c) => {
   let code = '';
   for (let attempt = 0; attempt < 5; attempt++) {
     const rand = crypto.getRandomValues(new Uint16Array(1))[0] % 10000;
-    code = `JGR-${stamp}-${String(rand).padStart(4, '0')}`;
+    // Los pedidos de la tienda 2 llevan otro prefijo para distinguirlos en WhatsApp.
+    code = `${isMainStore(store) ? 'JGR' : 'JGR2'}-${stamp}-${String(rand).padStart(4, '0')}`;
     try {
-      await c.env.DB.prepare('INSERT INTO orders (code, customer, items, total) VALUES (?1, ?2, ?3, ?4)')
-        .bind(code, JSON.stringify(customer), JSON.stringify(lines), total)
+      await c.env.DB.prepare('INSERT INTO orders (code, customer, items, total, store) VALUES (?1, ?2, ?3, ?4, ?5)')
+        .bind(code, JSON.stringify(customer), JSON.stringify(lines), total, store)
         .run();
       break;
     } catch (e) {

@@ -64,6 +64,85 @@ Pueden entrar el dueño del repositorio (`Fervelop`) y los colaboradores con per
 
 ---
 
+## Tienda 2 (mismos productos, otros precios)
+
+| | |
+|---|---|
+| **Tienda** | https://shop.jgrimportaciones.workers.dev |
+| **Panel** | https://shop.jgrimportaciones.workers.dev/admin |
+| **Cloudflare** | Worker `shop`, la **misma** base de datos `jgr-db` y las **mismas** fotos `jgr-imagenes` |
+
+**Qué comparte con JGR:** productos, fotos, descripciones, variantes, unidades disponibles, categorías, página de inicio, colores, logo, textos, medios de pago y ciudades con contraentrega. Todo eso se cambia **solo en el panel de JGR** y se ve en las dos tiendas.
+
+**Qué es propio de la tienda 2:**
+- **Precios** (y precio anterior para ofertas). Un producto **sin precio** en la tienda 2 **no aparece** en ella.
+- **WhatsApp** de pedidos. Si no lo pones, los pedidos llegan al de JGR.
+- **Pedidos**: cada panel ve solo los suyos. Los de la tienda 2 tienen el código `JGR2-...`.
+
+**Panel de la tienda 2:** solo tiene Resumen, Precios, Pedidos y WhatsApp. No puede crear, editar ni borrar productos, fotos, categorías ni textos: el servidor lo bloquea aunque se intente por fuera del panel. Solo entran los usuarios de GitHub que estén en `ADMIN_USERS` dentro de `env.shop` en `wrangler.jsonc` (hoy, solo `Fervelop`). Los colaboradores del repositorio **no** entran. Una sesión abierta en un panel no sirve en el otro.
+
+> Si ocultas un producto en JGR (Publicado = no) o se agota, también se oculta o se agota en la tienda 2, porque es el mismo producto y las mismas unidades.
+
+### Ponerla en línea (una sola vez, en este orden)
+
+**1. Respaldo y migración de la base de datos** (antes de subir el código; no borra nada, solo agrega la tabla de precios de la tienda 2 y la columna "tienda" a los pedidos):
+
+```powershell
+npx wrangler d1 export jgr-db --remote --output=respaldo-antes-shop.sql
+npm run db:migrar:shop
+```
+
+**2. Subir el código** (JGR se vuelve a publicar sola y sigue igual):
+
+```powershell
+git add .
+git commit -m "Tienda 2 con precios, WhatsApp, pedidos y panel propios"
+git push
+```
+
+**3. Crear una segunda GitHub OAuth App** para el panel de la tienda 2 (GitHub solo permite una dirección de regreso por app). En GitHub → **Settings → Developer settings → OAuth Apps → New OAuth App**:
+- Application name: `Panel Tienda 2`
+- Homepage URL: `https://shop.jgrimportaciones.workers.dev`
+- Authorization callback URL: `https://shop.jgrimportaciones.workers.dev/auth/callback`
+
+Copia el **Client ID** y pégalo en `wrangler.jsonc`, en `env.shop.vars.GITHUB_CLIENT_ID` (reemplaza `REEMPLAZAR_CLIENT_ID_SHOP`). Luego **Generate a new client secret** y guárdalo para el paso 5. Sube el cambio con `git add`, `git commit` y `git push`.
+
+**4. Publicar la tienda 2:**
+
+```powershell
+npx wrangler login
+npm run deploy:shop
+```
+
+**5. Poner los secretos de la tienda 2** (te pide pegar cada valor):
+
+```powershell
+npx wrangler secret put GITHUB_CLIENT_SECRET --env shop
+npx wrangler secret put SESSION_SECRET --env shop
+```
+
+Para `SESSION_SECRET` usa un texto largo y aleatorio, **distinto** del de JGR. Puedes generar uno con:
+
+```powershell
+[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+**6. Entrar al panel** https://shop.jgrimportaciones.workers.dev/admin, poner el **WhatsApp** y luego los **precios**. Mientras un producto no tenga precio, la tienda 2 no lo muestra.
+
+### Publicación automática de la tienda 2 (opcional)
+
+Sin esto, después de cada `git push` publica la tienda 2 a mano con `npm run deploy:shop`. Para que sea automático: en Cloudflare → **Workers y Pages → shop → Settings → Builds → Connect**, elige el repositorio `Fervelop/jgr-importaciones`, rama `main`, y en **Deploy command** escribe `npx wrangler deploy --env shop`.
+
+### Probar la tienda 2 en tu computador
+
+```powershell
+npm run dev:shop
+```
+
+Abre http://localhost:8788 y http://localhost:8788/admin. No puedes tener abiertas la tienda 1 y la 2 en tu computador al mismo tiempo (comparten la base de datos local): cierra una antes de abrir la otra.
+
+---
+
 ## Cambiar el código
 
 Solo hace falta para cambiar cómo funciona o cómo está hecha la tienda.

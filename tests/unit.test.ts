@@ -237,3 +237,52 @@ describe('datos obligatorios del carrito', () => {
     expect(validateCustomer({ ...ok, city: 'IBAGUE', payment: cod }, opts)).toEqual({});
   });
 });
+
+describe('tienda 2', () => {
+  const noFetch = (() => { throw new Error('no debía llamar a GitHub'); }) as any;
+
+  it('identifica la tienda y usa JGR por defecto', async () => {
+    const { storeId } = await import('../src/lib/settings');
+    expect(storeId({})).toBe('jgr');
+    expect(storeId({ STORE: 'T2' })).toBe('t2');
+    expect(storeId({ STORE: "t2'; DROP TABLE x" })).toBe('jgr');
+  });
+
+  it('en la tienda 2 solo entran los usuarios de la lista, ni el dueño ni los colaboradores del repositorio', async () => {
+    const env = { GITHUB_REPO: 'Fervelop/jgr-importaciones', ADMIN_USERS: 'Fervelop', STORE: 't2' };
+    expect((await checkAccess('fervelop', 'tok', env, noFetch)).allowed).toBe(true);
+    expect((await checkAccess('colaborador', 'tok', env, noFetch)).allowed).toBe(false);
+    expect((await checkAccess('Fervelop', 'tok', { ...env, ADMIN_USERS: '' }, noFetch)).allowed).toBe(false);
+  });
+
+  it('una sesión de un panel no sirve en el otro', async () => {
+    const { sessionFitsStore } = await import('../src/lib/auth');
+    const base = { login: 'a', name: 'a', avatar: '', exp: Date.now() + 1000 };
+    expect(sessionFitsStore(base, {})).toBe(true); // sesiones antiguas = JGR
+    expect(sessionFitsStore(base, { STORE: 't2' })).toBe(false);
+    expect(sessionFitsStore({ ...base, store: 't2' }, { STORE: 't2' })).toBe(true);
+    expect(sessionFitsStore({ ...base, store: 't2' }, {})).toBe(false);
+  });
+
+  it('el panel de la tienda 2 no puede tocar productos, fotos, categorías ni ajustes de JGR', async () => {
+    const { allowedFor } = await import('../src/routes/admin-api');
+    for (const [m, path] of [['PATCH', '/productos/3'], ['PUT', '/productos/3'], ['POST', '/productos'], ['DELETE', '/productos/3'], ['POST', '/subir'], ['PUT', '/ajustes/store'], ['GET', '/ajustes'], ['POST', '/categorias'], ['DELETE', '/categorias/2']]) {
+      expect(allowedFor('t2', m, path), `${m} ${path}`).toBe(false);
+    }
+    for (const [m, path] of [['GET', '/precios'], ['PUT', '/precios/3'], ['GET', '/pedidos'], ['PATCH', '/pedidos/9'], ['PUT', '/tienda-propia'], ['GET', '/resumen']]) {
+      expect(allowedFor('t2', m, path), `${m} ${path}`).toBe(true);
+    }
+    expect(allowedFor('jgr', 'PUT', '/productos/3')).toBe(true);
+    expect(allowedFor('jgr', 'PUT', '/precios/3')).toBe(false);
+  });
+
+  it('valida los precios propios y vacío significa que no se vende', async () => {
+    const { cleanStorePrice, productSource } = await import('../src/lib/db');
+    expect(cleanStorePrice({ price: '' })).toBeNull();
+    expect(cleanStorePrice({ price: 85000, compareAtPrice: '' })).toEqual({ price: 85000, compareAtPrice: null });
+    expect(() => cleanStorePrice({ price: 85000, compareAtPrice: 80000 })).toThrow(ValidationError);
+    expect(productSource()).toBe('products');
+    expect(productSource('t2')).toContain("sp.store = 't2'");
+    expect(() => productSource("t2' OR 1=1")).toThrow();
+  });
+});

@@ -9,17 +9,18 @@ import {
   safeEqual,
   SESSION_COOKIE,
   SESSION_HOURS,
+  sessionFitsStore,
   sessionSecret,
   signSession,
   STATE_COOKIE,
   verifySession,
 } from './lib/auth';
-import { buildTree, getProductBySlug, listCategories, listProducts, SORTS, type Category, type CategoryTree, type Product } from './lib/db';
-import { getSettings, type Env } from './lib/settings';
+import { buildTree, getProductBySlug, listCategories, listProducts as listAll, productSource, SORTS, type Category, type CategoryTree, type Product, type ProductQuery } from './lib/db';
+import { getSettings, isMainStore, storeId, type Env } from './lib/settings';
 import { toInt } from './lib/util';
 import { adminApi } from './routes/admin-api';
 import { publicApi } from './routes/public-api';
-import { adminShell, loginPage } from './views/admin';
+import { adminShell, loginPage, storeInfo } from './views/admin';
 import { categoryPage, faqPage, listingPage, notFoundPage, productPage, textPage } from './views/catalog';
 import { homePage, type HomeData } from './views/home';
 import type { ViewCtx } from './views/layout';
@@ -36,8 +37,12 @@ app.use('*', async (c, next) => {
   if (new URL(c.req.url).protocol === 'https:') c.header('Strict-Transport-Security', 'max-age=31536000');
 });
 
+/** Productos de la tienda de este Worker (JGR o la tienda 2, con sus propios precios). */
+const listProducts = (c: Context<{ Bindings: Env }>, q: ProductQuery) => listAll(c.env.DB, { ...q, store: storeId(c.env) });
+
 async function viewCtx(c: Context<{ Bindings: Env }>) {
-  const [settings, categories] = await Promise.all([getSettings(c.env.DB), listCategories(c.env.DB)]);
+  const store = storeId(c.env);
+  const [settings, categories] = await Promise.all([getSettings(c.env.DB, store), listCategories(c.env.DB, false, store)]);
   const url = new URL(c.req.url);
   const ctx: ViewCtx = { settings, tree: buildTree(categories), path: url.pathname, origin: url.origin };
   return { ctx, categories };
@@ -60,13 +65,12 @@ function queryState(c: Context) {
 app.get('/', async (c) => {
   const { ctx, categories } = await viewCtx(c);
   const h = ctx.settings.home;
-  const db = c.env.DB;
   const available = (list: { items: Product[] }) => list.items.filter((p) => !p.soldOut);
 
   const [featured, offers, discover] = await Promise.all([
-    h.showFeatured ? listProducts(db, { featuredOnly: true, perPage: 12, sort: 'destacados' }) : null,
-    h.showOffers ? listProducts(db, { onSaleOnly: true, perPage: 12, sort: 'descuento' }) : null,
-    h.showDiscover ? listProducts(db, { perPage: h.discoverCount, sort: 'recientes' }) : null,
+    h.showFeatured ? listProducts(c, { featuredOnly: true, perPage: 12, sort: 'destacados' }) : null,
+    h.showOffers ? listProducts(c, { onSaleOnly: true, perPage: 12, sort: 'descuento' }) : null,
+    h.showDiscover ? listProducts(c, { perPage: h.discoverCount, sort: 'recientes' }) : null,
   ]);
 
   let seasonal: HomeData['seasonal'] = { products: [], category: null };
@@ -74,7 +78,7 @@ app.get('/', async (c) => {
     const cat = categories.find((x) => x.id === h.seasonalCategoryId) || null;
     if (cat) {
       const ids = [cat.id, ...categories.filter((x) => x.parentId === cat.id).map((x) => x.id)];
-      seasonal = { category: cat, products: available(await listProducts(db, { categoryIds: ids, perPage: 12 })) };
+      seasonal = { category: cat, products: available(await listProducts(c, { categoryIds: ids, perPage: 12 })) };
     }
   }
 
@@ -98,7 +102,7 @@ app.get('/', async (c) => {
 app.get('/ofertas', async (c) => {
   const { ctx } = await viewCtx(c);
   const q = queryState(c);
-  const list = await listProducts(c.env.DB, {
+  const list = await listProducts(c, {
     onSaleOnly: true,
     sort: c.req.query('orden') ? q.orden : 'descuento',
     page: q.page,
@@ -125,7 +129,7 @@ app.get('/categoria/:slug', async (c) => {
   if (!root) root = { ...cat, children: [], totalCount: cat.productCount };
   const ids = root.id === cat.id ? [root.id, ...root.children.map((k) => k.id)] : [cat.id];
   const q = queryState(c);
-  const list = await listProducts(c.env.DB, {
+  const list = await listProducts(c, {
     categoryIds: ids,
     q: q.q,
     sort: q.orden,
@@ -138,17 +142,17 @@ app.get('/categoria/:slug', async (c) => {
 
 app.get('/producto/:slug', async (c) => {
   const { ctx, categories } = await viewCtx(c);
-  const p = await getProductBySlug(c.env.DB, c.req.param('slug'));
+  const p = await getProductBySlug(c.env.DB, c.req.param('slug'), false, storeId(c.env));
   if (!p) return page(c, notFoundPage(ctx), 404);
   const cat = categories.find((x) => x.id === p.categoryId) || null;
   const root = cat ? ctx.tree.find((t) => t.id === cat.id || t.children.some((k) => k.id === cat.id)) || null : null;
   let related: typeof p[] = [];
   if (cat) {
     const ids = root ? [root.id, ...root.children.map((k) => k.id)] : [cat.id];
-    const sameSub = await listProducts(c.env.DB, { categoryIds: [cat.id], excludeId: p.id, perPage: 4 });
+    const sameSub = await listProducts(c, { categoryIds: [cat.id], excludeId: p.id, perPage: 4 });
     related = sameSub.items.filter((x) => !x.soldOut);
     if (related.length < 4) {
-      const more = await listProducts(c.env.DB, { categoryIds: ids, excludeId: p.id, perPage: 8 });
+      const more = await listProducts(c, { categoryIds: ids, excludeId: p.id, perPage: 8 });
       for (const x of more.items) if (related.length < 4 && !x.soldOut && !related.some((r) => r.id === x.id)) related.push(x);
     }
   }
@@ -159,7 +163,7 @@ app.get('/buscar', async (c) => {
   const { ctx } = await viewCtx(c);
   const q = queryState(c);
   const list = q.q
-    ? await listProducts(c.env.DB, { q: q.q, sort: q.orden, page: q.page, perPage: ctx.settings.store.perPage })
+    ? await listProducts(c, { q: q.q, sort: q.orden, page: q.page, perPage: ctx.settings.store.perPage })
     : { items: [], total: 0, page: 1, pages: 1, perPage: 12 };
   return page(
     c,
@@ -170,7 +174,7 @@ app.get('/buscar', async (c) => {
 app.get('/destacados', async (c) => {
   const { ctx } = await viewCtx(c);
   const q = queryState(c);
-  const list = await listProducts(c.env.DB, { featuredOnly: true, sort: q.orden, page: q.page, perPage: ctx.settings.store.perPage });
+  const list = await listProducts(c, { featuredOnly: true, sort: q.orden, page: q.page, perPage: ctx.settings.store.perPage });
   return page(
     c,
     listingPage(ctx, {
@@ -208,8 +212,8 @@ app.get('/robots.txt', (c) => {
 
 app.get('/sitemap.xml', async (c) => {
   const origin = new URL(c.req.url).origin;
-  const cats = await listCategories(c.env.DB);
-  const prods = await c.env.DB.prepare('SELECT slug, updated_at FROM products WHERE visible = 1').all<{ slug: string; updated_at: string }>();
+  const cats = await listCategories(c.env.DB, false, storeId(c.env));
+  const prods = await c.env.DB.prepare(`SELECT slug, updated_at FROM ${productSource(storeId(c.env))} WHERE visible = 1`).all<{ slug: string; updated_at: string }>();
   const urls = [
     `${origin}/`,
     ...cats.map((x) => `${origin}/categoria/${x.slug}`),
@@ -258,14 +262,20 @@ app.get('/admin', async (c) => {
     return c.html(html as any, 200, { 'Cache-Control': 'no-store' });
   }
   const host = new URL(c.req.url).hostname;
+  // Una sesión de la otra tienda no sirve aquí (cada panel es independiente).
+  if (session && !sessionFitsStore(session, c.env)) session = null;
   if (!session) {
     return c.html(
-      loginPage(settings, { error: c.req.query('error'), devLogin: c.env.DEV_LOGIN === '1' && isLocalHost(host) }) as any,
+      loginPage(settings, {
+        error: c.req.query('error'),
+        devLogin: c.env.DEV_LOGIN === '1' && isLocalHost(host),
+        secondary: !isMainStore(storeId(c.env)),
+      }) as any,
       200,
       { 'Cache-Control': 'no-store' },
     );
   }
-  return c.html(adminShell(settings, session) as any, 200, { 'Cache-Control': 'no-store' });
+  return c.html(adminShell(settings, session, storeInfo(c.env)) as any, 200, { 'Cache-Control': 'no-store' });
 });
 app.get('/admin/*', (c) => c.redirect('/admin', 302));
 
@@ -308,7 +318,7 @@ app.get('/auth/callback', async (c) => {
       console.log(`Acceso negado a ${user.login}: ${access.reason}`);
       return c.redirect('/admin?error=sin-permiso', 302);
     }
-    const session = await signSession({ ...user, exp: Date.now() + SESSION_HOURS * 3600 * 1000 }, secret);
+    const session = await signSession({ ...user, store: storeId(c.env), exp: Date.now() + SESSION_HOURS * 3600 * 1000 }, secret);
     setCookie(c, SESSION_COOKIE, session, cookieOpts(c, SESSION_HOURS * 3600));
     return c.redirect('/admin', 302);
   } catch (e) {
@@ -322,7 +332,7 @@ app.get('/auth/dev', async (c) => {
   const host = new URL(c.req.url).hostname;
   if (c.env.DEV_LOGIN !== '1' || !isLocalHost(host)) return c.notFound();
   const session = await signSession(
-    { login: 'modo-local', name: 'Modo local', avatar: '', exp: Date.now() + SESSION_HOURS * 3600 * 1000 },
+    { login: 'modo-local', name: 'Modo local', avatar: '', store: storeId(c.env), exp: Date.now() + SESSION_HOURS * 3600 * 1000 },
     sessionSecret(c.env),
   );
   setCookie(c, SESSION_COOKIE, session, cookieOpts(c, SESSION_HOURS * 3600));

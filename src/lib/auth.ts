@@ -1,14 +1,21 @@
 // Inicio de sesión del panel con GitHub OAuth.
-// Solo entran: los usuarios de ADMIN_USERS, el dueño del repositorio GITHUB_REPO
+// Tienda JGR: entran los usuarios de ADMIN_USERS, el dueño del repositorio GITHUB_REPO
 // y sus colaboradores con permiso de escritura (push, maintain o admin).
+// Tienda secundaria (STORE distinto de "jgr"): SOLO los usuarios de ADMIN_USERS.
 
-import type { Env } from './settings';
+import { MAIN_STORE, isMainStore, storeId, type Env } from './settings';
 
 export const SESSION_COOKIE = 'jgr_admin';
 export const STATE_COOKIE = 'jgr_oauth_state';
 export const SESSION_HOURS = 12;
 
-export type Session = { login: string; name: string; avatar: string; exp: number };
+/** `store`: tienda del panel donde se inició la sesión (las sesiones antiguas sin este dato son de JGR). */
+export type Session = { login: string; name: string; avatar: string; store?: string; exp: number };
+
+/** Una sesión solo vale en el panel de la tienda donde se abrió. */
+export function sessionFitsStore(session: Session, env: Pick<Env, 'STORE'>): boolean {
+  return (session.store || MAIN_STORE) === storeId(env);
+}
 
 const enc = new TextEncoder();
 
@@ -88,7 +95,7 @@ export type AccessResult = { allowed: boolean; reason: string };
 export async function checkAccess(
   login: string,
   token: string,
-  env: Pick<Env, 'GITHUB_REPO' | 'ADMIN_USERS'>,
+  env: Pick<Env, 'GITHUB_REPO' | 'ADMIN_USERS' | 'STORE'>,
   fetcher: typeof fetch = fetch,
 ): Promise<AccessResult> {
   const lower = login.toLowerCase();
@@ -97,6 +104,8 @@ export async function checkAccess(
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   if (allowList.includes(lower)) return { allowed: true, reason: 'lista' };
+  // En una tienda secundaria solo entran los usuarios de ADMIN_USERS (ni dueño ni colaboradores del repositorio).
+  if (!isMainStore(storeId(env))) return { allowed: false, reason: 'no-esta-en-la-lista' };
 
   const repo = (env.GITHUB_REPO || '').trim();
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return { allowed: false, reason: 'repo-no-configurado' };

@@ -51,6 +51,19 @@ CREATE TABLE IF NOT EXISTS orders (
   items TEXT NOT NULL DEFAULT '[]',
   total INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'nuevo',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  -- Tienda que recibió el pedido: 'jgr' o el identificador de la otra tienda (por ejemplo 't2').
+  store TEXT NOT NULL DEFAULT 'jgr'
 );
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_store ON orders(store, id);
+
+-- Precios de las tiendas secundarias. Un producto solo se ve en esa tienda si tiene fila aquí.
+CREATE TABLE IF NOT EXISTS store_prices (
+  store TEXT NOT NULL,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  price INTEGER NOT NULL,
+  compare_at_price INTEGER,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (store, product_id)
+);

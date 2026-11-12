@@ -4,6 +4,10 @@ import { formatCOP, discountPercent } from '/assets/js/order.js';
 
 const app = document.getElementById('app');
 const USER = JSON.parse(app.dataset.user || '{}');
+// Tienda de este panel. En la tienda 2 el panel solo maneja sus precios, sus pedidos y su WhatsApp.
+const STORE = JSON.parse(app.dataset.store || '{"id":"jgr","main":true}');
+const SECUNDARIA = !STORE.main;
+const PANEL_NAME = SECUNDARIA ? 'Panel Tienda 2' : 'Panel JGR';
 
 /* ---------- Utilidades ---------- */
 function h(tag, attrs = {}, ...children) {
@@ -348,7 +352,12 @@ function repeater({ items, fields, addLabel, empty, onChange, max = 50 }) {
 }
 
 /* ---------- Estructura del panel ---------- */
-const NAV = [
+const NAV = SECUNDARIA ? [
+  { id: 'resumen', label: 'Resumen', icon: 'home' },
+  { id: 'precios', label: 'Precios', icon: 'box' },
+  { id: 'pedidos', label: 'Pedidos', icon: 'receipt' },
+  { id: 'whatsapp', label: 'WhatsApp', icon: 'whatsapp' },
+] : [
   { id: 'resumen', label: 'Resumen', icon: 'home' },
   { id: 'productos', label: 'Productos', icon: 'box' },
   { id: 'categorias', label: 'Categorías', icon: 'folder' },
@@ -376,7 +385,7 @@ const navList = h('ul');
 const sidebar = h(
   'aside',
   { class: 'lateral', id: 'lateral' },
-  h('a', { class: 'lateral__marca', href: '#/resumen' }, h('img', { src: '/marca/logo.webp', alt: '', width: 40, height: 36 }), h('span', {}, h('strong', { text: 'Panel JGR' }), h('small', { text: 'Administración' }))),
+  h('a', { class: 'lateral__marca', href: '#/resumen' }, h('img', { src: '/marca/logo.webp', alt: '', width: 40, height: 36 }), h('span', {}, h('strong', { text: PANEL_NAME }), h('small', { text: SECUNDARIA ? 'Precios y pedidos' : 'Administración' }))),
   h('nav', { 'aria-label': 'Secciones del panel' }, navList),
   h(
     'div',
@@ -411,7 +420,7 @@ app.replaceChildren(sidebar, h('div', { class: 'cuerpo' }, topbar, main));
 
 function setTitle(t) {
   document.getElementById('titulo-vista').textContent = t;
-  document.title = `${t} | Panel JGR`;
+  document.title = `${t} | ${PANEL_NAME}`;
 }
 
 /* ---------- Router ---------- */
@@ -432,7 +441,8 @@ async function route() {
   for (const a of navList.querySelectorAll('a')) a.toggleAttribute('aria-current', a.dataset.nav === section);
   main.replaceChildren(h('p', { class: 'cargando', text: 'Cargando…' }));
   try {
-    const view = VIEWS[section] || VIEWS.resumen;
+    const views = SECUNDARIA ? VIEWS2 : VIEWS;
+    const view = views[section] || views.resumen;
     await view(sub);
   } catch (e) {
     if (e.message !== '401') main.replaceChildren(h('div', { class: 'aviso aviso--error' }, h('p', { text: e.message }), h('button', { class: 'btn btn--linea btn--sm', onclick: route, text: 'Intentar de nuevo' })));
@@ -1281,6 +1291,184 @@ VIEWS.tienda = async () => {
       }),
     ],
   });
+};
+
+/* ================= VISTAS DE LA TIENDA 2 =================
+   Los productos, fotos, categorías y textos son los de JGR y se cambian en el panel de JGR.
+   Aquí solo se ponen los precios de esta tienda, se ven sus pedidos y se cambia su WhatsApp. */
+const VIEWS2 = {};
+
+VIEWS2.resumen = async () => {
+  setTitle('Resumen');
+  const r = await api('/resumen');
+  const p = r.productos || {};
+  const stat = (n, label, href) => h('a', { class: 'dato', href }, h('strong', { text: String(n ?? 0) }), h('span', { text: label }));
+  const sinPrecio = (Number(p.total) || 0) - (Number(p.conPrecio) || 0);
+  main.replaceChildren(...[
+    h('div', { class: 'cab-vista' }, h('div', {}, h('h1', { text: `Hola, ${(USER.name || USER.login).split(' ')[0]}` }), h('p', { text: 'Tienda 2 usa los productos, fotos y textos de JGR, con sus propios precios, pedidos y WhatsApp.' })),
+      h('div', { class: 'cab-vista__acc' }, h('a', { class: 'btn btn--primario', href: '#/precios?estado=sin-precio' }, icon('edit', 16), 'Poner precios'))),
+    r.whatsapp ? null : h('p', { class: 'aviso aviso--alerta' }, `Aún no has puesto el WhatsApp de esta tienda, así que los pedidos llegan al de JGR (+${r.whatsappJGR}). `, h('a', { href: '#/whatsapp', text: 'Ponerlo ahora' })),
+    h(
+      'section',
+      { class: 'datos-fila', 'aria-label': 'Cifras de la tienda 2' },
+      stat(p.visibles, 'productos a la venta', '#/precios?estado=con-precio'),
+      stat(sinPrecio, 'sin precio (no se ven)', '#/precios?estado=sin-precio'),
+      stat(p.ofertas, 'en oferta', '#/precios?estado=ofertas'),
+      stat(r.pedidos7?.n, 'pedidos en 7 días', '#/pedidos'),
+    ),
+    h(
+      'section',
+      { class: 'panel' },
+      h('div', { class: 'panel__cab' }, h('h2', { text: 'Últimos pedidos' }), h('a', { href: '#/pedidos', text: 'Ver todos' })),
+      r.recientes.length
+        ? h('ul', { class: 'lista-simple' }, r.recientes.map((o) => h('li', {}, h('span', {}, h('strong', { text: o.code }), h('small', { text: ` ${fmtDate(o.createdAt)}${o.customer?.name ? ` · ${o.customer.name}` : ''}` })), h('span', { class: 'num', text: formatCOP(o.total) }), estadoPill(o.status))))
+        : h('p', { class: 'vacio', text: 'Todavía no hay pedidos en esta tienda. Aparecerán aquí cuando un cliente envíe su carrito por WhatsApp.' }),
+    ),
+  ].filter(Boolean));
+};
+
+VIEWS2.precios = async () => {
+  setTitle('Precios');
+  const params = new URLSearchParams((location.hash.split('?')[1]) || '');
+  const state = { q: params.get('q') || '', categoria: params.get('categoria') || '', estado: params.get('estado') || 'todos', pagina: Number(params.get('pagina')) || 1 };
+  const cats = await categories(true);
+  const tbody = h('tbody');
+  const info = h('p', { class: 'tabla-info', role: 'status' });
+  const pager = h('nav', { class: 'paginador', 'aria-label': 'Páginas de productos' });
+
+  const load = async () => {
+    const qs = new URLSearchParams({ q: state.q, categoria: state.categoria, estado: state.estado, pagina: String(state.pagina) });
+    history.replaceState(null, '', `#/precios?${qs}`);
+    lastHash = location.hash;
+    const data = await api(`/precios?${qs}`);
+    info.textContent = data.total === 1 ? '1 producto' : `${data.total} productos`;
+    tbody.textContent = '';
+    if (!data.items.length) tbody.append(h('tr', {}, h('td', { colspan: 5, class: 'vacio' }, 'Ningún producto coincide con estos filtros.')));
+    for (const p of data.items) tbody.append(priceRow(p, cats));
+    pager.textContent = '';
+    if (data.pages > 1) {
+      for (let i = 1; i <= data.pages; i++) {
+        pager.append(h('button', { type: 'button', class: `paginador__n${i === data.page ? ' is-actual' : ''}`, 'aria-current': i === data.page ? 'page' : null, text: String(i), onclick: () => { state.pagina = i; load(); } }));
+      }
+    }
+  };
+
+  let timer;
+  const filtros = h(
+    'div',
+    { class: 'filtros' },
+    field({ label: 'Buscar', type: 'search', value: state.q, attrs: { placeholder: 'Nombre o referencia' }, onInput: (v) => { clearTimeout(timer); timer = setTimeout(() => { state.q = v; state.pagina = 1; load(); }, 300); } }),
+    field({ label: 'Categoría', type: 'select', value: state.categoria, options: [{ value: '', label: 'Todas' }, ...categoryOptions(cats, { includeNone: false, onlyRoots: false })], onInput: (v) => { state.categoria = v; state.pagina = 1; load(); } }),
+    field({
+      label: 'Mostrar',
+      type: 'select',
+      value: state.estado,
+      options: [
+        { value: 'todos', label: 'Todos' },
+        { value: 'con-precio', label: 'Con precio (se venden aquí)' },
+        { value: 'sin-precio', label: 'Sin precio (no se ven aquí)' },
+        { value: 'ofertas', label: 'En oferta' },
+      ],
+      onInput: (v) => { state.estado = v; state.pagina = 1; load(); },
+    }),
+  );
+
+  main.replaceChildren(
+    h('div', { class: 'cab-vista' }, h('div', {}, h('h1', { text: 'Precios de la tienda 2' }),
+      h('p', { text: 'Escribe el precio de cada producto para esta tienda. Si lo dejas vacío, el producto no aparece aquí. Llena "Precio anterior" con un valor mayor para que salga en Ofertas del día. Los cambios en JGR no se tocan.' }))),
+    h('section', { class: 'panel' }, filtros, info,
+      h('div', { class: 'tabla-wrap' },
+        h('table', { class: 'tabla' },
+          h('thead', {}, h('tr', {}, h('th', { text: 'Producto' }), h('th', { text: 'Precio en JGR' }), h('th', { text: 'Precio aquí (COP)' }), h('th', { text: 'Precio anterior aquí' }), h('th', { text: 'Estado' }))),
+          tbody)),
+      pager),
+  );
+  await load();
+};
+
+function priceRow(p, cats) {
+  const cat = cats.find((c) => c.id === p.categoryId);
+  const parent = cat?.parentId ? cats.find((c) => c.id === cat.parentId) : null;
+  const state = h('span');
+  let row;
+  const paintState = () => {
+    row?.classList.toggle('is-oculto', p.price === null);
+    let label = 'Sin precio: no se ve';
+    let cls = 'pill';
+    if (p.price !== null && !p.visible) { label = 'Oculto en JGR'; }
+    else if (p.price !== null && p.soldOut) { label = 'Agotado'; cls = 'pill pill--cancelado'; }
+    else if (p.price !== null) {
+      const pct = discountPercent(p.price, p.compareAtPrice);
+      label = pct ? `A la venta · -${pct}%` : 'A la venta';
+      cls = pct ? 'pill pill--oferta' : 'pill pill--confirmado';
+    }
+    state.replaceChildren(h('span', { class: cls, text: label }));
+  };
+  paintState();
+  const priceInput = h('input', { type: 'number', min: 0, step: 100, value: p.price ?? '', placeholder: 'Sin precio', class: 'en-linea', 'aria-label': `Precio de ${p.name} en la tienda 2` });
+  const compareInput = h('input', { type: 'number', min: 0, step: 100, value: p.compareAtPrice ?? '', placeholder: 'Opcional', class: 'en-linea', 'aria-label': `Precio anterior de ${p.name} en la tienda 2` });
+  const save = async () => {
+    const price = priceInput.value === '' ? null : Number(priceInput.value);
+    const compareAtPrice = compareInput.value === '' || price === null ? null : Number(compareInput.value);
+    try {
+      const { value } = await api(`/precios/${p.id}`, { method: 'PUT', body: { price, compareAtPrice } });
+      p.price = value ? value.price : null;
+      p.compareAtPrice = value ? value.compareAtPrice : null;
+      toast(value ? 'Precio guardado' : 'Sin precio: ya no se ve en la tienda 2');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+    priceInput.value = p.price ?? '';
+    compareInput.value = p.compareAtPrice ?? '';
+    paintState();
+  };
+  priceInput.addEventListener('change', save);
+  compareInput.addEventListener('change', save);
+  const extra = [p.sku, p.variants ? `${p.variants} variante${p.variants > 1 ? 's' : ''} (mismo ajuste que en JGR)` : '', cat ? (parent ? `${parent.name} › ${cat.name}` : cat.name) : ''].filter(Boolean).join(' · ');
+  row = h(
+    'tr',
+    { class: p.price === null ? 'is-oculto' : '' },
+    h('td', {},
+      h('span', { class: 'prod-celda' },
+        p.image ? h('img', { src: p.image, alt: '', width: 48, height: 48, loading: 'lazy' }) : h('span', { class: 'prod-celda__sin' }, icon('box')),
+        h('span', {}, h('strong', { text: p.name }), h('small', { text: extra })))),
+    h('td', { class: 'num' }, h('span', { text: formatCOP(p.mainPrice) }), p.mainCompareAtPrice ? h('small', { text: ` antes ${formatCOP(p.mainCompareAtPrice)}` }) : null),
+    h('td', {}, priceInput),
+    h('td', {}, compareInput),
+    h('td', {}, state),
+  );
+  return row;
+}
+
+VIEWS2.pedidos = (sub) => VIEWS.pedidos(sub);
+
+VIEWS2.whatsapp = async () => {
+  setTitle('WhatsApp');
+  const data = await api('/tienda-propia');
+  const v = { ...data.value };
+  const saveBtn = h('button', { type: 'submit', class: 'btn btn--primario' }, icon('check', 16), 'Guardar cambios');
+  const form = h('form', { class: 'ajustes', novalidate: true },
+    h('section', { class: 'panel' }, h('h2', { text: 'Pedidos por WhatsApp' }),
+      field({ label: 'Número de WhatsApp de la tienda 2', value: v.whatsapp, hint: `Con indicativo del país y sin espacios. Ej.: 573001234567. Si lo dejas vacío, los pedidos llegan al de JGR (+${data.whatsappJGR}).`, attrs: { inputmode: 'tel', maxlength: 15 }, onInput: (x) => { v.whatsapp = x.replace(/\D/g, ''); setDirty(true); } }),
+      h('p', { class: 'campo__ayuda', text: 'El saludo del mensaje, los medios de pago, las ciudades con contraentrega, las redes y los textos son los mismos de JGR y se cambian en el panel de JGR.' })),
+    h('div', { class: 'barra-guardar' }, h('span', { class: 'barra-guardar__estado', text: 'Cambios sin guardar' }), h('a', { class: 'btn btn--linea', href: '/', target: '_blank', rel: 'noopener' }, icon('eye', 16), 'Ver tienda'), saveBtn),
+  );
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (v.whatsapp && v.whatsapp.length < 10) return toast('El número parece incompleto. Escríbelo con el indicativo del país, por ejemplo 573001234567.', 'error');
+    saveBtn.disabled = true;
+    try {
+      await api('/tienda-propia', { method: 'PUT', body: v });
+      setDirty(false);
+      toast('Guardado. Los pedidos de la tienda 2 ya llegan a este número.');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+  main.replaceChildren(h('div', { class: 'cab-vista' }, h('div', {}, h('h1', { text: 'WhatsApp' }), h('p', { text: 'Número al que llegan los pedidos de la tienda 2.' }))), form);
+  setDirty(false);
 };
 
 route();

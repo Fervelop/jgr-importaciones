@@ -23,11 +23,72 @@ export type Env = {
   ADMIN_USERS?: string;
   /** Solo para desarrollo local en localhost. */
   DEV_LOGIN?: string;
+  /**
+   * Qué tienda atiende este Worker. Vacío o "jgr": la tienda principal.
+   * Otro valor (por ejemplo "t2"): una tienda con los mismos productos y fotos de JGR,
+   * pero con sus propios precios, su propio WhatsApp, sus propios pedidos y un panel limitado.
+   */
+  STORE?: string;
 };
+
+export const MAIN_STORE = 'jgr';
+
+/** Identificador de la tienda de este Worker (solo letras minúsculas y números). */
+export function storeId(env: Pick<Env, 'STORE'>): string {
+  const s = String(env.STORE || '').trim().toLowerCase();
+  return /^[a-z0-9]{1,20}$/.test(s) ? s : MAIN_STORE;
+}
+
+export const isMainStore = (store: string) => store === MAIN_STORE;
+
+/** Ajustes propios de una tienda secundaria (lo que la diferencia de JGR). */
+export type StoreOverrides = { whatsapp: string };
+
+const overridesKey = (store: string) => `tienda:${store}`;
+
+export async function getStoreOverrides(db: D1Database, store: string): Promise<StoreOverrides> {
+  if (isMainStore(store)) return { whatsapp: '' };
+  try {
+    const row = await db.prepare('SELECT value FROM settings WHERE key = ?1').bind(overridesKey(store)).first<{ value: string }>();
+    return sanitizeOverrides(parseJSON<unknown>(row?.value, {}));
+  } catch {
+    return { whatsapp: '' };
+  }
+}
+
+export function sanitizeOverrides(v: any): StoreOverrides {
+  return { whatsapp: String(v?.whatsapp ?? '').replace(/\D/g, '').slice(0, 15) };
+}
+
+export async function saveStoreOverrides(db: D1Database, store: string, value: unknown) {
+  if (isMainStore(store)) throw new Error('La tienda principal no usa ajustes propios.');
+  const clean = sanitizeOverrides(value);
+  await db
+    .prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, CURRENT_TIMESTAMP)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`,
+    )
+    .bind(overridesKey(store), JSON.stringify(clean))
+    .run();
+  return clean;
+}
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
-export async function getSettings(db: D1Database): Promise<Settings> {
+/**
+ * Ajustes de la tienda. Una tienda secundaria usa todo lo de JGR (marca, colores, inicio, textos)
+ * y solo cambia el número de WhatsApp (si ya lo configuraste en su panel).
+ */
+export async function getSettings(db: D1Database, store: string = MAIN_STORE): Promise<Settings> {
+  const out = await getMainSettings(db);
+  if (!isMainStore(store)) {
+    const o = await getStoreOverrides(db, store);
+    if (o.whatsapp) out.store.whatsapp = o.whatsapp;
+  }
+  return out;
+}
+
+async function getMainSettings(db: D1Database): Promise<Settings> {
   const out = clone(DEFAULT_SETTINGS);
   let rows: { key: string; value: string }[] = [];
   try {

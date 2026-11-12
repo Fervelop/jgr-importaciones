@@ -87,12 +87,34 @@ function rowToCategory(r: any): Category {
   };
 }
 
+/* ---------- Tienda: de dónde salen los productos ---------- */
+
+const MAIN = 'jgr';
+const PRODUCT_COLS = [
+  'id', 'category_id', 'slug', 'name', 'brand', 'sku', 'short_description', 'description', 'stock', 'sold_out',
+  'featured', 'visible', 'sort_order', 'images', 'options', 'specs', 'created_at', 'updated_at',
+];
+
+/**
+ * Tabla de productos que ve cada tienda.
+ * - JGR: la tabla `products` tal cual.
+ * - Otra tienda: los mismos productos, pero solo los que tienen precio en `store_prices`
+ *   para esa tienda, y con ese precio (y su precio anterior) en lugar del de JGR.
+ */
+export function productSource(store: string = MAIN): string {
+  if (store === MAIN) return 'products';
+  if (!/^[a-z0-9]{1,20}$/.test(store)) throw new Error('Tienda no válida');
+  const cols = PRODUCT_COLS.map((c) => `p0.${c}`).join(', ');
+  return `(SELECT ${cols}, sp.price AS price, sp.compare_at_price AS compare_at_price
+    FROM products p0 JOIN store_prices sp ON sp.product_id = p0.id AND sp.store = '${store}')`;
+}
+
 /* ---------- Categorías ---------- */
 
-export async function listCategories(db: D1Database, includeHidden = false): Promise<Category[]> {
+export async function listCategories(db: D1Database, includeHidden = false, store: string = MAIN): Promise<Category[]> {
   const res = await db
     .prepare(
-      `SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id ${
+      `SELECT c.*, (SELECT COUNT(*) FROM ${productSource(store)} p WHERE p.category_id = c.id ${
         includeHidden ? '' : 'AND p.visible = 1'
       }) AS product_count
        FROM categories c ${includeHidden ? '' : 'WHERE c.visible = 1'}
@@ -135,6 +157,8 @@ export type ProductQuery = {
   featuredOnly?: boolean;
   onSaleOnly?: boolean;
   excludeId?: number;
+  /** Tienda que pide los productos (por defecto JGR). */
+  store?: string;
 };
 
 export const SORTS: Record<string, { label: string; sql: string }> = {
@@ -193,21 +217,21 @@ export async function listProducts(db: D1Database, q: ProductQuery) {
   const order = `(p.sold_out = 1 OR COALESCE(p.stock, 1) = 0) ASC, ${sort.sql}`;
 
   const countRow = await db
-    .prepare(`SELECT COUNT(*) AS n FROM products p ${whereSql}`)
+    .prepare(`SELECT COUNT(*) AS n FROM ${productSource(q.store)} p ${whereSql}`)
     .bind(...binds)
     .first<{ n: number }>();
   const total = Number(countRow?.n) || 0;
   const res = await db
-    .prepare(`SELECT p.* FROM products p ${whereSql} ORDER BY ${order} LIMIT ${perPage} OFFSET ${offset}`)
+    .prepare(`SELECT p.* FROM ${productSource(q.store)} p ${whereSql} ORDER BY ${order} LIMIT ${perPage} OFFSET ${offset}`)
     .bind(...binds)
     .all();
   const items = (res.results || []).map(rowToProduct);
   return { items, total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
-export async function getProductBySlug(db: D1Database, slug: string, includeHidden = false) {
+export async function getProductBySlug(db: D1Database, slug: string, includeHidden = false, store: string = MAIN) {
   const r = await db
-    .prepare(`SELECT * FROM products WHERE slug = ?1 ${includeHidden ? '' : 'AND visible = 1'}`)
+    .prepare(`SELECT * FROM ${productSource(store)} WHERE slug = ?1 ${includeHidden ? '' : 'AND visible = 1'}`)
     .bind(slug)
     .first();
   return r ? rowToProduct(r) : null;
@@ -218,12 +242,12 @@ export async function getProductById(db: D1Database, id: number) {
   return r ? rowToProduct(r) : null;
 }
 
-export async function getProductsByIds(db: D1Database, ids: number[]) {
+export async function getProductsByIds(db: D1Database, ids: number[], store: string = MAIN) {
   const clean = [...new Set(ids.filter((n) => Number.isInteger(n) && n > 0))].slice(0, 100);
   if (!clean.length) return [];
   const marks = clean.map((_, i) => `?${i + 1}`).join(',');
   const res = await db
-    .prepare(`SELECT * FROM products WHERE visible = 1 AND id IN (${marks})`)
+    .prepare(`SELECT * FROM ${productSource(store)} WHERE visible = 1 AND id IN (${marks})`)
     .bind(...clean)
     .all();
   return (res.results || []).map(rowToProduct);
@@ -355,7 +379,11 @@ export async function saveProduct(db: D1Database, input: any, id?: number) {
 }
 
 export async function deleteProduct(db: D1Database, id: number) {
-  await db.prepare('DELETE FROM products WHERE id = ?1').bind(id).run();
+  // También se borran sus precios en las otras tiendas.
+  await db.batch([
+    db.prepare('DELETE FROM store_prices WHERE product_id = ?1').bind(id),
+    db.prepare('DELETE FROM products WHERE id = ?1').bind(id),
+  ]);
 }
 
 export async function saveCategory(db: D1Database, input: any, id?: number) {
@@ -412,4 +440,50 @@ export async function reorder(db: D1Database, table: 'products' | 'categories', 
   const clean = ids.filter((n) => Number.isInteger(n) && n > 0).slice(0, 500);
   if (!clean.length) return;
   await db.batch(clean.map((id, i) => db.prepare(`UPDATE ${table} SET sort_order = ?1 WHERE id = ?2`).bind(i, id)));
+}
+
+/* ---------- Precios de una tienda secundaria ---------- */
+
+export type StorePrice = { price: number; compareAtPrice: number | null };
+
+/** Limpia el precio de otra tienda. `price` vacío significa "no se vende en esa tienda". */
+export function cleanStorePrice(input: any): StorePrice | null {
+  const empty = (v: unknown) => v === null || v === undefined || v === '';
+  if (empty(input?.price)) return null;
+  const price = toInt(input.price, NaN, 0, 1_000_000_000);
+  if (!Number.isFinite(price)) throw new ValidationError('price', 'Escribe el precio en pesos, solo números.');
+  let compare: number | null = null;
+  if (!empty(input?.compareAtPrice)) {
+    compare = toInt(input.compareAtPrice, NaN, 0, 1_000_000_000);
+    if (!Number.isFinite(compare)) throw new ValidationError('compareAtPrice', 'El precio anterior debe ser un número.');
+    if (compare <= price) throw new ValidationError('compareAtPrice', 'El precio anterior debe ser mayor que el precio actual.');
+  }
+  return { price, compareAtPrice: compare };
+}
+
+export async function getStorePrice(db: D1Database, store: string, productId: number): Promise<StorePrice | null> {
+  const r = await db
+    .prepare('SELECT price, compare_at_price FROM store_prices WHERE store = ?1 AND product_id = ?2')
+    .bind(store, productId)
+    .first<{ price: number; compare_at_price: number | null }>();
+  return r ? { price: Number(r.price), compareAtPrice: r.compare_at_price ? Number(r.compare_at_price) : null } : null;
+}
+
+export async function setStorePrice(db: D1Database, store: string, productId: number, input: any) {
+  if (store === MAIN) throw new Error('JGR usa el precio del producto.');
+  const clean = cleanStorePrice(input);
+  if (!clean) {
+    await db.prepare('DELETE FROM store_prices WHERE store = ?1 AND product_id = ?2').bind(store, productId).run();
+    return null;
+  }
+  await db
+    .prepare(
+      `INSERT INTO store_prices (store, product_id, price, compare_at_price, updated_at)
+       VALUES (?1, ?2, ?3, ?4, CURRENT_TIMESTAMP)
+       ON CONFLICT(store, product_id) DO UPDATE SET price = excluded.price,
+         compare_at_price = excluded.compare_at_price, updated_at = CURRENT_TIMESTAMP`,
+    )
+    .bind(store, productId, clean.price, clean.compareAtPrice)
+    .run();
+  return clean;
 }
