@@ -158,7 +158,7 @@ export const DEFAULT_SETTINGS: Settings = {
     featuredSubtitle: 'Lo que más recomendamos ahora.',
     banners: [
       { title: 'Envíos a toda Colombia', text: 'Te cotizamos el envío por WhatsApp antes de pagar.', buttonText: 'Cómo comprar', link: '/#como-comprar', image: '', icon: 'truck', style: 'oscuro' },
-      { title: 'Paga como prefieras', text: 'Nequi, Daviplata, transferencia, PSE, tarjeta o contraentrega.', buttonText: 'Ver preguntas frecuentes', link: '/preguntas-frecuentes', image: '', icon: 'tag', style: 'dorado' },
+      { title: 'Paga como prefieras', text: 'Nequi, Daviplata, llave Bre-B, PSE, tarjeta y contraentrega en Ibagué y Bogotá.', buttonText: 'Ver preguntas frecuentes', link: '/preguntas-frecuentes', image: '', icon: 'tag', style: 'dorado' },
       { title: '¿Compras al por mayor?', text: 'Escríbenos y te cotizamos pedidos grandes.', buttonText: 'Escribir por WhatsApp', link: 'whatsapp', image: '', icon: 'box', style: 'claro' },
     ],
     showSeasonal: true,
@@ -203,10 +203,10 @@ export const DEFAULT_SETTINGS: Settings = {
   payments: [
     'Nequi',
     'Daviplata',
-    'Transferencia Bancolombia',
+    'Llave Bre-B',
     'PSE',
     'Tarjeta de crédito o débito',
-    'Efectivo contraentrega',
+    'Efectivo contraentrega (solo Ibagué y Bogotá)',
   ],
   social: { instagram: '', facebook: '', tiktok: '', youtube: '' },
   contact: {
@@ -222,7 +222,7 @@ export const DEFAULT_SETTINGS: Settings = {
   faq: [
     { q: '¿Cómo hago un pedido?', a: 'Agrega los productos al carrito y presiona "Enviar pedido por WhatsApp". El mensaje sale listo con todo tu pedido y te respondemos para confirmar.' },
     { q: '¿Cuánto cuesta el envío?', a: 'Depende de tu ciudad y del tamaño del paquete. Te lo confirmamos por WhatsApp antes de que pagues.' },
-    { q: '¿Qué medios de pago aceptan?', a: 'Nequi, Daviplata, transferencia Bancolombia, PSE, tarjetas de crédito o débito y, en algunas ciudades, efectivo contraentrega.' },
+    { q: '¿Qué medios de pago aceptan?', a: 'Nequi, Daviplata, llave Bre-B, PSE y tarjetas de crédito o débito. En Ibagué y Bogotá también puedes pagar en efectivo contraentrega.' },
     { q: '¿Los productos tienen garantía?', a: 'Sí. Todos nuestros productos tienen garantía contra defectos de fábrica. Revisa la página de cambios y devoluciones para ver los plazos.' },
     { q: '¿Cuánto tarda en llegar mi pedido?', a: 'Normalmente entre 1 y 5 días hábiles según tu ciudad. Te compartimos la guía de envío para que hagas seguimiento.' },
   ],
