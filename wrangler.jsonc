@@ -2,7 +2,7 @@
 	// Configuración de Cloudflare Workers para JGR Importaciones.
 	// Reemplaza los valores marcados con REEMPLAZAR siguiendo el README.
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "jgr-importaciones",
+	"name": "tienda",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-01-01",
 	"compatibility_flags": [
@@ -33,7 +33,7 @@
 		// Repositorio de GitHub cuyos colaboradores (con permiso de escritura) pueden entrar a /admin.
 		"GITHUB_REPO": "Fervelop/jgr-importaciones",
 		// Client ID de tu GitHub OAuth App (no es secreto).
-		"GITHUB_CLIENT_ID": "REEMPLAZAR_CLIENT_ID",
+		"GITHUB_CLIENT_ID": "Ov23lizhAUBnM4CsTFvR",
 		// "read:user" si el repositorio es público; "repo" si es privado (GitHub lo exige para ver tus permisos).
 		"GITHUB_SCOPE": "read:user"
 	}
