@@ -133,7 +133,7 @@ main { display: block; }
 .bloque__mas { display: flex; justify-content: center; margin-top: 28px; }
 .carrusel {
   position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: clamp(190px, 21vw, 236px); gap: 16px;
-  overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; padding: 4px 2px 14px; scrollbar-width: thin;
+  overflow-x: auto; scroll-snap-type: x proximity; overscroll-behavior-x: contain; padding: 4px 2px 14px; scrollbar-width: thin;
 }
 .carrusel > li { scroll-snap-align: start; }
 .rejilla, .vitrinas { display: grid; grid-template-columns: repeat(auto-fill, minmax(214px, 1fr)); gap: 18px; }
@@ -184,10 +184,9 @@ main { display: block; }
   display: grid; gap: 8px; justify-items: center; height: 100%; padding: 10px 10px 12px; border-radius: var(--r);
   background: var(--surface); border: 1px solid var(--line); text-decoration: none; text-align: center; transition: border-color 0.18s, transform 0.2s var(--ease-out);
 }
-.cuadro:hover { border-color: var(--gold); transform: translateY(-2px); }
+.cuadro:hover { border-color: var(--gold); }
 .cuadro__img { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--r-sm); background: var(--tint); color: var(--gold-text); overflow: hidden; }
 .cuadro__img img { width: 100%; height: 100%; object-fit: contain; padding: 6px; transition: transform 0.4s var(--ease-out); }
-.cuadro:hover .cuadro__img img { transform: scale(1.06); }
 .cuadro__nombre { font-size: 0.875rem; font-weight: 700; line-height: 1.25; max-width: 100%; overflow-wrap: anywhere; hyphens: auto; }
 .cuadro--principal { border-color: var(--gold-hair); background: var(--tint); }
 .cuadro--principal .cuadro__img { background: var(--surface); }
@@ -198,7 +197,6 @@ main { display: block; }
 .tarjeta:hover { border-color: var(--gold-hair); box-shadow: var(--shadow); }
 .tarjeta__foto { position: relative; display: block; aspect-ratio: 1; background: var(--tint); }
 .tarjeta__foto img { width: 100%; height: 100%; object-fit: contain; padding: 10%; transition: transform 0.45s var(--ease-out); }
-.tarjeta:hover .tarjeta__foto img { transform: scale(1.05); }
 .tarjeta--agotada .tarjeta__foto img { opacity: 0.45; filter: grayscale(0.7); }
 .tarjeta__sin-foto { display: grid; place-items: center; height: 100%; color: var(--gold-text); }
 .insignias { position: absolute; left: 10px; top: 10px; display: grid; gap: 6px; justify-items: start; }
@@ -255,7 +253,7 @@ main { display: block; }
 .exhibicion__in { max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); }
 .exhibicion .fila__mas { color: var(--ink); }
 .exhibicion__pista {
-  position: relative; display: flex; gap: clamp(18px, 2.5vw, 34px); overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+  position: relative; display: flex; gap: clamp(18px, 2.5vw, 34px); overflow-x: auto; scroll-snap-type: x proximity; overscroll-behavior-x: contain;
   padding: 26px max(var(--gutter), calc((100vw - var(--max)) / 2 + var(--gutter))) 26px; scrollbar-width: none;
 }
 .exhibicion__pista::-webkit-scrollbar { display: none; }
@@ -269,7 +267,6 @@ main { display: block; }
 }
 .exhibidor:nth-child(even) .exhibidor__tarjeta { --giro: 3deg; --alto: 10px; }
 .exhibidor:nth-child(3n) .exhibidor__tarjeta { --giro: -1.5deg; --alto: -4px; }
-.exhibidor:hover .exhibidor__tarjeta, .exhibidor:focus-within .exhibidor__tarjeta { transform: rotate(0deg) translateY(-6px); box-shadow: 0 30px 50px -24px color-mix(in oklab, #3b2c08 75%, transparent); }
 .exhibidor__foto { display: block; width: 100%; height: 100%; }
 .exhibidor__foto img { width: 100%; height: 100%; object-fit: contain; padding: 14% 12% 18%; }
 .exhibidor__cuenta {
@@ -611,3 +608,23 @@ main { display: block; }
 @media (max-width: 360px) { .mosaico { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 :root[data-theme="dark"] .exhibidor__tarjeta { box-shadow: 0 22px 40px -24px rgb(0 0 0 / 0.85), 0 0 0 1px var(--line); }
 .hoja .aviso-flotante { bottom: calc(92px + env(safe-area-inset-bottom)); }
+
+/* ---------- Imágenes fijas al deslizar ----------
+   Los carruseles solo se mueven de lado: el deslizamiento vertical pasa a la página.
+   Los efectos de acercar o levantar imágenes solo existen con mouse, no al tocar. */
+.portada__pista, .carrusel, .exhibicion__pista, .galeria__pista, .galeria__miniaturas, .nav ul {
+  overflow-y: hidden;
+  overscroll-behavior-y: auto;
+  touch-action: pan-x pan-y;
+}
+.tarjeta__foto, .cuadro__img, .galeria__pista li, .exhibidor__tarjeta, .slide__img, .linea__foto { overflow: hidden; }
+img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
+a, button { -webkit-tap-highlight-color: transparent; }
+
+@media (hover: hover) and (pointer: fine) {
+  .cuadro:hover { transform: translateY(-2px); }
+  .cuadro:hover .cuadro__img img { transform: scale(1.06); }
+  .tarjeta:hover .tarjeta__foto img { transform: scale(1.05); }
+  .exhibidor:hover .exhibidor__tarjeta { transform: rotate(0deg) translateY(-6px); box-shadow: 0 30px 50px -24px color-mix(in oklab, #3b2c08 75%, transparent); }
+}
+.exhibidor:has(:focus-visible) .exhibidor__tarjeta { transform: rotate(0deg); }
