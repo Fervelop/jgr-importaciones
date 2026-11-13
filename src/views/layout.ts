@@ -100,7 +100,7 @@ ${meta.noindex ? raw('<meta name="robots" content="noindex">') : ''}
 <script>try{var t=localStorage.getItem('jgr-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
 <link rel="preload" href="/assets/fonts/nunito-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/css/fonts.css">
-<link rel="stylesheet" href="/assets/css/site.css?v=4">
+<link rel="stylesheet" href="/assets/css/site.css?v=5">
 ${themeStyle(s)}
 ${meta.jsonLd ? raw(`<script type="application/ld+json">${jsonForScript(meta.jsonLd)}</script>`) : ''}
 </head>
